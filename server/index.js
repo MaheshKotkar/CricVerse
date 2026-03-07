@@ -38,6 +38,7 @@ app.use('/api/auth', require('./routes/googleAuth'));
 app.use('/api/tournaments', require('./routes/tournaments'));
 app.use('/api/teams', require('./routes/teams'));
 app.use('/api', require('./routes/matches'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => {
