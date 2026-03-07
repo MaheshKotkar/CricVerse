@@ -14,11 +14,13 @@ const app = express();
 
 // ── Middleware ────────────────────────────────────────────
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: [process.env.CLIENT_URL || 'http://localhost:5173', 'http://localhost:3000'],
     credentials: true,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static('uploads'));
+
 
 app.use(session({
     secret: process.env.JWT_SECRET,
@@ -33,6 +35,9 @@ app.use(passport.session());
 // ── Routes ────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/auth', require('./routes/googleAuth'));
+app.use('/api/tournaments', require('./routes/tournaments'));
+app.use('/api/teams', require('./routes/teams'));
+app.use('/api', require('./routes/matches'));
 
 // Health check
 app.get('/api/health', (req, res) => {
