@@ -120,7 +120,8 @@ router.patch('/:id/start', protect, authorize('organizer', 'admin'), async (req,
         tournament.status = 'Active';
         await tournament.save();
 
-        res.status(200).json({ success: true, data: tournament });
+        const populatedTournament = await Tournament.findById(tournament._id).populate('teams');
+        res.status(200).json({ success: true, data: populatedTournament });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
     }
@@ -145,7 +146,8 @@ router.post('/:id/teams', protect, authorize('organizer', 'admin'), async (req, 
         });
 
         await tournament.save();
-        res.status(200).json({ success: true, data: tournament });
+        const populatedTournament = await Tournament.findById(tournament._id).populate('teams');
+        res.status(200).json({ success: true, data: populatedTournament });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
     }

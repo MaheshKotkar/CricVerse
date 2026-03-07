@@ -211,11 +211,9 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
                             <h2 style={{ fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
                                 <Users size={20} color="#3b82f6" /> Teams ({data.teams.length})
                             </h2>
-                            {data.status === 'Draft' && (
-                                <button onClick={() => setShowAddTeam(!showAddTeam)} style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: '#3b82f6', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                                    {showAddTeam ? 'Cancel' : '+ Add Team'}
-                                </button>
-                            )}
+                            <button onClick={() => setShowAddTeam(!showAddTeam)} style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: '#3b82f6', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                                {showAddTeam ? 'Cancel' : '+ Add Team'}
+                            </button>
                         </div>
 
                         {showAddTeam && (

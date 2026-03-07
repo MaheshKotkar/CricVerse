@@ -75,4 +75,23 @@ router.get('/tournaments/:tournamentId/matches', async (req, res) => {
     }
 });
 
+// ── @route   GET /api/matches/upcoming
+// ── @desc    Get upcoming and live matches across all active tournaments
+// ── @access  Public
+router.get('/matches/upcoming', async (req, res) => {
+    try {
+        const matches = await Match.find({ status: { $in: ['Scheduled', 'Live'] } })
+            .populate('teamA', 'name logo')
+            .populate('teamB', 'name logo')
+            .populate('tournament', 'name status format')
+            .sort({ date: 1 })
+            .limit(10); // get next 10 matches
+
+        res.status(200).json({ success: true, count: matches.length, data: matches });
+    } catch (err) {
+        console.error("Fetch Upcoming Matches Error:", err);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+});
+
 module.exports = router;
