@@ -329,9 +329,21 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {matches.map((m: any) => (
                                         <div key={m._id} style={{ background: 'rgba(15,22,41,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: 16 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>
-                                                <span>{new Date(m.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
-                                                <span style={{ background: m.status === 'Live' ? '#ef4444' : 'rgba(255,255,255,0.05)', color: m.status === 'Live' ? '#fff' : '#94a3b8', padding: '2px 8px', borderRadius: 6 }}>{m.status}</span>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', flexWrap: 'wrap', gap: 10 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+                                                        <Calendar size={13} /> {new Date(m.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                                    </div>
+                                                    <span style={{ background: m.status === 'Live' ? '#ef4444' : 'rgba(255,255,255,0.05)', color: m.status === 'Live' ? '#fff' : '#94a3b8', padding: '4px 10px', borderRadius: 6, fontSize: 10 }}>● {m.status}</span>
+                                                </div>
+
+                                                {(m.status === 'Scheduled' || m.status === 'Live') && (
+                                                    <Link href={`/dashboard/organizer/tournaments/${data._id}/matches/${m._id}/score`} style={{ textDecoration: 'none' }}>
+                                                        <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)' }}>
+                                                            <Play size={14} fill="currentColor" /> {m.status === 'Live' ? 'Score Live' : 'Start Match'}
+                                                        </button>
+                                                    </Link>
+                                                )}
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                                                 <div style={{ flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#f8fafc', wordBreak: 'break-word' }}>

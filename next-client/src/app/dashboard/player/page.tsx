@@ -39,7 +39,7 @@ function PlayerDashboardContent() {
     const quickActions = [
         { emoji: '🏆', label: 'Join Tournament', sub: 'Browse & register for events', color: '#3b82f6', href: '/dashboard/player/tournaments' },
         { emoji: '👤', label: 'My Profile', sub: 'View & edit career stats', color: '#22c55e', href: '/dashboard/player/profile' },
-        { emoji: '📊', label: 'Live Score', sub: 'Score in real-time', color: '#f97316', href: '#' },
+        { emoji: '📊', label: 'Live Score', sub: 'Score in real-time', color: '#f97316', href: '/matches/live' },
         { emoji: '🎯', label: 'My Stats', sub: 'Detailed performance analytics', color: '#a855f7', href: '#' },
     ];
 
@@ -194,9 +194,9 @@ function PlayerDashboardContent() {
                                             </div>
                                         )}
                                         {m.status === 'Live' && (
-                                            <button className="pd-match-live-btn">
+                                            <Link href={`/matches/${m._id}/live`} className="pd-match-live-btn" style={{ textDecoration: 'none' }}>
                                                 <Play size={12} fill="currentColor" /> Watch Score
-                                            </button>
+                                            </Link>
                                         )}
                                     </div>
                                 </div>

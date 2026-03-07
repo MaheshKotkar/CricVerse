@@ -52,6 +52,60 @@ const MatchSchema = new mongoose.Schema({
             type: String,
             default: ''
         }
+    },
+    // ---- Live Scoring Data ----
+    overs: {
+        type: Number,
+        default: 20 // Default T20 length
+    },
+    currentInning: {
+        type: Number,
+        default: 1,
+        enum: [1, 2]
+    },
+    battingTeam: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Team',
+        default: null
+    },
+    bowlingTeam: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Team',
+        default: null
+    },
+    score: {
+        inning1: {
+            runs: { type: Number, default: 0 },
+            wickets: { type: Number, default: 0 },
+            overs: { type: Number, default: 0 }, // Track decimal overs like 1.2
+            dismissedPlayers: [{ type: String }]
+        },
+        inning2: {
+            runs: { type: Number, default: 0 },
+            wickets: { type: Number, default: 0 },
+            overs: { type: Number, default: 0 },
+            dismissedPlayers: [{ type: String }]
+        }
+    },
+    target: {
+        type: Number,
+        default: 0
+    },
+    activePlayers: {
+        striker: { type: String, default: null },
+        nonStriker: { type: String, default: null },
+        bowler: { type: String, default: null }
+    },
+    playerStats: {
+        type: Map,
+        of: new mongoose.Schema({
+            batRuns: { type: Number, default: 0 },
+            batBalls: { type: Number, default: 0 },
+            bowlRuns: { type: Number, default: 0 },
+            bowlBalls: { type: Number, default: 0 },
+            bowlWickets: { type: Number, default: 0 }
+        }, { _id: false }),
+        default: {}
     }
 }, { timestamps: true });
 
