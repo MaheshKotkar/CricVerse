@@ -91,6 +91,24 @@ const MatchSchema = new mongoose.Schema({
             dismissedPlayers: [{ type: String }]
         }
     },
+    isSuperOver: {
+        type: Boolean,
+        default: false
+    },
+    superOver: {
+        inning1: {
+            runs: { type: Number, default: 0 },
+            wickets: { type: Number, default: 0 },
+            overs: { type: Number, default: 0 },
+            dismissedPlayers: [{ type: String }]
+        },
+        inning2: {
+            runs: { type: Number, default: 0 },
+            wickets: { type: Number, default: 0 },
+            overs: { type: Number, default: 0 },
+            dismissedPlayers: [{ type: String }]
+        }
+    },
     target: {
         type: Number,
         default: 0
@@ -105,9 +123,14 @@ const MatchSchema = new mongoose.Schema({
         of: new mongoose.Schema({
             batRuns: { type: Number, default: 0 },
             batBalls: { type: Number, default: 0 },
+            batFours: { type: Number, default: 0 },
+            batSixes: { type: Number, default: 0 },
+            isOut: { type: Boolean, default: false },
+            dismissalType: { type: String, default: null },
             bowlRuns: { type: Number, default: 0 },
             bowlBalls: { type: Number, default: 0 },
-            bowlWickets: { type: Number, default: 0 }
+            bowlWickets: { type: Number, default: 0 },
+            bowlMaidens: { type: Number, default: 0 }
         }, { _id: false }),
         default: {}
     }

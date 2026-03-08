@@ -145,8 +145,18 @@ function AdminTournamentDetail({ params }: { params: Promise<{ id: string }> }) 
                                                 </div>
                                                 <div style={{ fontWeight: 800, fontSize: 16 }}>{m.teamA?.name}</div>
                                                 {m.status === 'Completed' && (
-                                                    <div style={{ fontSize: 20, fontWeight: 900, color: m.winner === m.teamA?._id ? '#22c55e' : '#475569', marginTop: 8 }}>
-                                                        {m.teamAScore?.runs}/{m.teamAScore?.wickets} ({m.teamAScore?.overs})
+                                                    <div style={{ marginTop: 8 }}>
+                                                        {m.isSuperOver && (
+                                                            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 2 }}>
+                                                                Reg: {m.score?.inning1?.runs}/{m.score?.inning1?.wickets} ({m.score?.inning1?.overs})
+                                                            </div>
+                                                        )}
+                                                        <div style={{ fontSize: m.isSuperOver ? 18 : 20, fontWeight: 900, color: m.result?.winningTeam?._id === m.teamA?._id ? '#22c55e' : '#475569' }}>
+                                                            {m.isSuperOver
+                                                                ? `${m.superOver?.inning1?.runs}/${m.superOver?.inning1?.wickets} (SO)`
+                                                                : `${m.score?.inning1?.runs}/${m.score?.inning1?.wickets} (${m.score?.inning1?.overs})`
+                                                            }
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -163,8 +173,18 @@ function AdminTournamentDetail({ params }: { params: Promise<{ id: string }> }) 
                                                 </div>
                                                 <div style={{ fontWeight: 800, fontSize: 16 }}>{m.teamB?.name}</div>
                                                 {m.status === 'Completed' && (
-                                                    <div style={{ fontSize: 20, fontWeight: 900, color: m.winner === m.teamB?._id ? '#22c55e' : '#475569', marginTop: 8 }}>
-                                                        {m.teamBScore?.runs}/{m.teamBScore?.wickets} ({m.teamBScore?.overs})
+                                                    <div style={{ marginTop: 8 }}>
+                                                        {m.isSuperOver && (
+                                                            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 2 }}>
+                                                                Reg: {m.score?.inning2?.runs}/{m.score?.inning2?.wickets} ({m.score?.inning2?.overs})
+                                                            </div>
+                                                        )}
+                                                        <div style={{ fontSize: m.isSuperOver ? 18 : 20, fontWeight: 900, color: m.result?.winningTeam?._id === m.teamB?._id ? '#22c55e' : '#475569' }}>
+                                                            {m.isSuperOver
+                                                                ? `${m.superOver?.inning2?.runs}/${m.superOver?.inning2?.wickets} (SO)`
+                                                                : `${m.score?.inning2?.runs}/${m.score?.inning2?.wickets} (${m.score?.inning2?.overs})`
+                                                            }
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -175,16 +195,18 @@ function AdminTournamentDetail({ params }: { params: Promise<{ id: string }> }) 
                                                 marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)',
                                                 textAlign: 'center', color: '#facc15', fontWeight: 800, fontSize: 14
                                             }}>
-                                                🏆 Result: {m.winnerName} won by {m.winMargin}
+                                                🏆 Result: {m.result?.winningTeam?.name ? `${m.result.winningTeam.name} ${m.result.margin}` : m.result?.margin || 'Match Completed'}
+                                                {m.isSuperOver && <span style={{ marginLeft: 8, fontSize: 10, background: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: 4, verticalAlign: 'middle' }}>SUPER OVER RESULT</span>}
                                             </div>
                                         )}
 
-                                        {m.status === 'Cancelled' && (
-                                            <div style={{
-                                                marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(239,68,68,0.1)',
-                                                textAlign: 'center', color: '#ef4444', fontWeight: 700, fontSize: 14
-                                            }}>
-                                                🚫 Match Cancelled: {m.cancelReason || 'Unspecified Reason'}
+                                        {m.status === 'Completed' && (
+                                            <div style={{ marginTop: 24, display: 'flex', justifyContent: 'center', gap: 12 }}>
+                                                <Link href={`/dashboard/admin/matches/${m._id}`} style={{ textDecoration: 'none' }}>
+                                                    <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 24px', borderRadius: '12px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+                                                        <Activity size={16} /> View Full Scorecard
+                                                    </button>
+                                                </Link>
                                             </div>
                                         )}
 

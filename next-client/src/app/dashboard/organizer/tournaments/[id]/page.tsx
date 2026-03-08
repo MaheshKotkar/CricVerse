@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, use } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Users, Calendar, MapPin, Play, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { Trophy, Users, Calendar, MapPin, Play, ArrowLeft, Loader2, CheckCircle2, Activity } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import api from '../../../../../utils/api';
@@ -456,17 +456,63 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
                                                             </button>
                                                         </Link>
                                                     )}
+                                                    {m.status === 'Completed' && (
+                                                        <Link href={`/dashboard/organizer/matches/${m._id}`} style={{ textDecoration: 'none' }}>
+                                                            <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+                                                                <Activity size={14} /> View Scorecard
+                                                            </button>
+                                                        </Link>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                                                 <div style={{ flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#f8fafc', wordBreak: 'break-word' }}>
                                                     {m.teamA?.name || 'Team A'}
+                                                    {m.status === 'Completed' && (
+                                                        <div style={{ marginTop: 6 }}>
+                                                            {m.isSuperOver && (
+                                                                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
+                                                                    Reg: {m.score?.inning1?.runs}/{m.score?.inning1?.wickets} ({m.score?.inning1?.overs})
+                                                                </div>
+                                                            )}
+                                                            <div style={{ fontSize: 16, fontWeight: 900, color: m.result?.winningTeam?._id === m.teamA?._id ? '#22c55e' : '#475569' }}>
+                                                                {m.isSuperOver
+                                                                    ? `${m.superOver?.inning1?.runs}/${m.superOver?.inning1?.wickets} (SO)`
+                                                                    : `${m.score?.inning1?.runs}/${m.score?.inning1?.wickets} (${m.score?.inning1?.overs})`
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div style={{ fontSize: 10, fontWeight: 900, color: '#64748b', padding: '4px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, flexShrink: 0 }}>VS</div>
                                                 <div style={{ flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#f8fafc', wordBreak: 'break-word' }}>
                                                     {m.teamB?.name || 'Team B'}
+                                                    {m.status === 'Completed' && (
+                                                        <div style={{ marginTop: 6 }}>
+                                                            {m.isSuperOver && (
+                                                                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
+                                                                    Reg: {m.score?.inning2?.runs}/{m.score?.inning2?.wickets} ({m.score?.inning2?.overs})
+                                                                </div>
+                                                            )}
+                                                            <div style={{ fontSize: 16, fontWeight: 900, color: m.result?.winningTeam?._id === m.teamB?._id ? '#22c55e' : '#475569' }}>
+                                                                {m.isSuperOver
+                                                                    ? `${m.superOver?.inning2?.runs}/${m.superOver?.inning2?.wickets} (SO)`
+                                                                    : `${m.score?.inning2?.runs}/${m.score?.inning2?.wickets} (${m.score?.inning2?.overs})`
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
+                                            {m.status === 'Completed' && (
+                                                <div style={{
+                                                    marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)',
+                                                    textAlign: 'center', color: '#facc15', fontWeight: 800, fontSize: 13
+                                                }}>
+                                                    🏆 Result: {m.result?.winningTeam?.name ? `${m.result.winningTeam.name} ${m.result.margin}` : m.result?.margin || 'Match Completed'}
+                                                    {m.isSuperOver && <span style={{ marginLeft: 6, fontSize: 9, background: '#ef4444', color: '#fff', padding: '2px 5px', borderRadius: 4, verticalAlign: 'middle' }}>SUPER OVER RESULT</span>}
+                                                </div>
+                                            )}
                                             {m.venue && (
                                                 <div style={{ textAlign: 'center', marginTop: 12, fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                                                     <MapPin size={12} /> {m.venue}

@@ -39,8 +39,8 @@ router.get('/', protect, authorize('organizer', 'admin'), async (req, res) => {
 
 // ── @route   GET /api/tournaments/public
 // ── @desc    Get all public tournaments for players to browse
-// ── @access  Public (or semi-private for any logged-in user)
-router.get('/public', protect, async (req, res) => {
+// ── @access  Public
+router.get('/public', async (req, res) => {
     try {
         // fetching tournaments that are created and maybe active/draft, returning basic info
         const tournaments = await Tournament.find()
@@ -89,8 +89,8 @@ router.get('/stats', protect, authorize('organizer', 'admin'), async (req, res) 
 
 // ── @route   GET /api/tournaments/:id
 // ── @desc    Get single tournament
-// ── @access  Private
-router.get('/:id', protect, async (req, res) => {
+// ── @access  Public
+router.get('/:id', async (req, res) => {
     try {
         const tournament = await Tournament.findById(req.params.id).populate('teams');
         if (!tournament) {

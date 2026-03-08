@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import api from '@/utils/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import {
@@ -130,7 +131,8 @@ function MatchScoringContent() {
         setScoringBall(true);
         try {
             const inningKey = match.currentInning === 1 ? 'inning1' : 'inning2';
-            const currentOvers = match.score[inningKey].overs;
+            const dataPath = match.isSuperOver ? match.superOver : match.score;
+            const currentOvers = dataPath[inningKey].overs;
 
             // Calculate new over logic: 1.5 -> 2.0. If WD/NB, over doesn't increase.
             let newOvers = currentOvers;
@@ -171,12 +173,13 @@ function MatchScoringContent() {
             setMatch(res.data.data.match);
             toast.success(isWicket ? "WICKET!" : `${runs + extras} Runs`);
 
-            const isAllOut = res.data.data.match.score[inningKey].wickets >= 10;
-            const isOversDone = newOvers >= res.data.data.match.overs;
+            const currentMatch = res.data.data.match;
+            const currentDataPath = currentMatch.isSuperOver ? currentMatch.superOver : currentMatch.score;
+            const isAllOut = currentDataPath[inningKey].wickets >= (currentMatch.isSuperOver ? 2 : 10);
+            const isOversDone = newOvers >= (currentMatch.isSuperOver ? 1.0 : currentMatch.overs);
 
             if (isAllOut || isOversDone) {
-                toast.error("Innings Complete!", { duration: 5000 });
-                // We'll just set it to needsNewBowler to block further scoring until the next phase is built
+                toast.success("Innings Complete!", { duration: 5000, icon: '🎯' });
                 setNeedsNewBowler(true);
             } else if (overCompleted) {
                 setNeedsNewBowler(true);
@@ -223,7 +226,8 @@ function MatchScoringContent() {
         setScoringBall(true);
         try {
             const inningKey = match.currentInning === 1 ? 'inning1' : 'inning2';
-            const currentOvers = match.score[inningKey].overs;
+            const dataPath = match.isSuperOver ? match.superOver : match.score;
+            const currentOvers = dataPath[inningKey].overs;
 
             let newOvers = currentOvers;
             let overCompleted = false;
@@ -255,11 +259,13 @@ function MatchScoringContent() {
             toast.success(`WICKET! ${dismissedPlayer} is out.`);
             setPendingWicket(false);
 
-            const isAllOut = res.data.data.match.score[inningKey].wickets >= 10;
-            const isOversDone = newOvers >= res.data.data.match.overs;
+            const currentMatch = res.data.data.match;
+            const currentDataPath = currentMatch.isSuperOver ? currentMatch.superOver : currentMatch.score;
+            const isAllOut = currentDataPath[inningKey].wickets >= (currentMatch.isSuperOver ? 2 : 10);
+            const isOversDone = newOvers >= (currentMatch.isSuperOver ? 1.0 : currentMatch.overs);
 
             if (isAllOut || isOversDone) {
-                toast.error("Innings Complete!", { duration: 5000 });
+                toast.success("Innings Complete!", { duration: 5000, icon: '🎯' });
                 setNeedsNewBowler(true);
             } else if (overCompleted) {
                 setNeedsNewBowler(true);
@@ -288,6 +294,42 @@ function MatchScoringContent() {
             router.push(`/dashboard/organizer/tournaments/${tournamentId}`);
         } catch (err: any) {
             toast.error(err.response?.data?.message || 'Failed to cancel match', { id: loadingToast });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleSwitchInning = async () => {
+        setActionLoading(true);
+        const loadingToast = toast.loading('Switching Inning...');
+        try {
+            const res = await api.patch(`/matches/${matchId}/switch-inning`);
+            setMatch(res.data.data);
+            setNeedsNewBowler(false);
+            setStriker('');
+            setNonStriker('');
+            setBowler('');
+            toast.success("Inning 2 Started! Select new players.", { id: loadingToast });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to switch inning', { id: loadingToast });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleStartSuperOver = async () => {
+        setActionLoading(true);
+        const loadingToast = toast.loading('Initializing Super Over...');
+        try {
+            const res = await api.patch(`/matches/${matchId}/start-super-over`);
+            setMatch(res.data.data);
+            setNeedsNewBowler(false);
+            setStriker('');
+            setNonStriker('');
+            setBowler('');
+            toast.success("Super Over Started!", { id: loadingToast });
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to start Super Over', { id: loadingToast });
         } finally {
             setActionLoading(false);
         }
@@ -525,52 +567,101 @@ function MatchScoringContent() {
                     </div>
                 )}
 
-                {/* Step 3: Main Scoreboard Area */}
-                {match.status === 'Live' && isPlayersSet && (
+                {/* Step 3: Main Scoreboard Area (Live or Completed) */}
+                {(match.status === 'Live' && isPlayersSet || match.status === 'Completed') && (
                     <div className="live-container">
                         {/* Huge Scoreboard */}
-                        <div className="huge-scoreboard">
-                            <div className="huge-inning">Innings {match.currentInning}</div>
+                        <div className={`huge-scoreboard ${match.status === 'Completed' ? 'completed' : ''} ${match.isSuperOver ? 'super-over-active' : ''}`}>
+                            <div className="huge-inning">
+                                {match.status === 'Completed' ? 'Match Completed' : match.isSuperOver ? `Super Over Inning ${match.currentInning}` : `Innings ${match.currentInning}`}
+                            </div>
                             <div className="huge-score">
-                                {score.runs} <span className="huge-wickets">/ {score.wickets}</span>
+                                {match.isSuperOver
+                                    ? (match.currentInning === 1 ? match.superOver?.inning1?.runs : match.superOver?.inning2?.runs)
+                                    : score.runs}
+                                <span className="huge-wickets">/ {match.isSuperOver
+                                    ? (match.currentInning === 1 ? match.superOver?.inning1?.wickets : match.superOver?.inning2?.wickets)
+                                    : score.wickets}</span>
                             </div>
                             <div className="huge-overs">
-                                Overs: <span>{score.overs}</span>
+                                Overs: <span>{match.isSuperOver
+                                    ? (match.currentInning === 1 ? match.superOver?.inning1?.overs : match.superOver?.inning2?.overs)
+                                    : score.overs}</span>
+                                {match.currentInning === 2 && match.status !== 'Completed' && (
+                                    <span style={{ marginLeft: 16, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 16 }}>
+                                        Target: <b>{match.target}</b>
+                                    </span>
+                                )}
                             </div>
-                            <div className="huge-batting-team">
-                                🏏 {match.battingTeam?.name} is batting.
-                            </div>
+                            {match.status === 'Completed' ? (
+                                <div className="huge-batting-team" style={{ color: '#fbbf24', fontSize: 20 }}>
+                                    🏆 {match.result?.winningTeam?.name ? `${match.result.winningTeam.name} ${match.result.margin}` : match.result?.margin}
+                                </div>
+                            ) : (
+                                <div className="huge-batting-team">
+                                    🏏 {match.battingTeam?.name} is batting.
+                                </div>
+                            )}
 
-                            {/* Current Players Mini-Table */}
-                            <div style={{ marginTop: 24, display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: 12, fontSize: 14, border: '1px solid rgba(255,255,255,0.1)' }}>
-                                    <span style={{ color: '#94a3b8' }}>Striker:</span>
-                                    <b style={{ marginLeft: 6 }}>{match.activePlayers.striker}</b>
-                                    <span style={{ color: '#4ade80', marginLeft: 8, fontWeight: 700 }}>{strikerStats.batRuns}*</span>
-                                    <span style={{ color: '#64748b', fontSize: 12 }}> ({strikerStats.batBalls})</span>
+                            {/* Current Players Mini-Table (Only if Live) */}
+                            {match.status === 'Live' && (
+                                <div style={{ marginTop: 24, display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: 12, fontSize: 14, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                        <span style={{ color: '#94a3b8' }}>Striker:</span>
+                                        <b style={{ marginLeft: 6 }}>{match.activePlayers.striker}</b>
+                                        <span style={{ color: '#4ade80', marginLeft: 8, fontWeight: 700 }}>{strikerStats.batRuns}*</span>
+                                        <span style={{ color: '#64748b', fontSize: 12 }}> ({strikerStats.batBalls})</span>
+                                    </div>
+                                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: 12, fontSize: 14, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                        <span style={{ color: '#94a3b8' }}>Non-Striker:</span>
+                                        <b style={{ marginLeft: 6 }}>{match.activePlayers.nonStriker}</b>
+                                        <span style={{ color: '#e2e8f0', marginLeft: 8, fontWeight: 700 }}>{nonStrikerStats.batRuns}</span>
+                                        <span style={{ color: '#64748b', fontSize: 12 }}> ({nonStrikerStats.batBalls})</span>
+                                    </div>
+                                    <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', padding: '12px 20px', borderRadius: 12, fontSize: 14, color: '#93c5fd' }}>
+                                        <span style={{ color: '#60a5fa' }}>Bowler:</span>
+                                        <b style={{ marginLeft: 6 }}>{match.activePlayers.bowler}</b>
+                                        <span style={{ color: '#bfdbfe', marginLeft: 8, fontWeight: 700 }}>{bowlerStats.bowlWickets}-{bowlerStats.bowlRuns}</span>
+                                        <span style={{ color: '#60a5fa', fontSize: 12 }}> ({formatOvers(bowlerStats.bowlBalls)})</span>
+                                    </div>
                                 </div>
-                                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: 12, fontSize: 14, border: '1px solid rgba(255,255,255,0.1)' }}>
-                                    <span style={{ color: '#94a3b8' }}>Non-Striker:</span>
-                                    <b style={{ marginLeft: 6 }}>{match.activePlayers.nonStriker}</b>
-                                    <span style={{ color: '#e2e8f0', marginLeft: 8, fontWeight: 700 }}>{nonStrikerStats.batRuns}</span>
-                                    <span style={{ color: '#64748b', fontSize: 12 }}> ({nonStrikerStats.batBalls})</span>
-                                </div>
-                                <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', padding: '12px 20px', borderRadius: 12, fontSize: 14, color: '#93c5fd' }}>
-                                    <span style={{ color: '#60a5fa' }}>Bowler:</span>
-                                    <b style={{ marginLeft: 6 }}>{match.activePlayers.bowler}</b>
-                                    <span style={{ color: '#bfdbfe', marginLeft: 8, fontWeight: 700 }}>{bowlerStats.bowlWickets}-{bowlerStats.bowlRuns}</span>
-                                    <span style={{ color: '#60a5fa', fontSize: 12 }}> ({formatOvers(bowlerStats.bowlBalls)})</span>
-                                </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Controls / Modals */}
-                        {score.wickets >= 10 || score.overs >= match.overs ? (
+                        {match.status === 'Completed' ? (
+                            <div className="pd-completed-actions">
+                                {match.result.margin === 'Match Tied' && !match.isSuperOver && (
+                                    <button className="pd-cta-primary super-over-btn" onClick={handleStartSuperOver}>
+                                        <Swords size={20} /> START SUPER OVER
+                                    </button>
+                                )}
+                                <Link href={`/dashboard/organizer/tournaments/${tournamentId}`} className="pd-cta-secondary" style={{ textDecoration: 'none' }}>
+                                    <ArrowLeft size={18} /> Back to Tournament
+                                </Link>
+                            </div>
+                        ) : (match.isSuperOver
+                            ? ((match.currentInning === 1 && (match.superOver.inning1.wickets >= 2 || match.superOver.inning1.overs >= 1)) ||
+                                (match.currentInning === 2 && (match.superOver.inning2.wickets >= 2 || match.superOver.inning2.overs >= 1)))
+                            : (score.wickets >= 10 || score.overs >= match.overs)) ? (
                             <div className="toss-container" style={{ marginTop: 24, border: '1px solid #10b981', textAlign: 'center' }}>
                                 <h2 className="toss-title" style={{ justifyContent: 'center', color: '#10b981' }}><Trophy size={24} /> Innings Complete!</h2>
-                                <p style={{ color: '#94a3b8', fontSize: 15 }}>
-                                    {match.battingTeam?.name} scored <b>{score.runs}/{score.wickets}</b> in <b>{score.overs}</b> overs.
+                                <p style={{ color: '#94a3b8', fontSize: 15, marginBottom: 20 }}>
+                                    {match.battingTeam?.name} scored <b>
+                                        {match.isSuperOver
+                                            ? (match.currentInning === 1 ? match.superOver.inning1.runs : match.superOver.inning2.runs)
+                                            : score.runs}/{match.isSuperOver
+                                                ? (match.currentInning === 1 ? match.superOver.inning1.wickets : match.superOver.inning2.wickets)
+                                                : score.wickets}</b> in <b>{match.isSuperOver
+                                                    ? (match.currentInning === 1 ? match.superOver.inning1.overs : match.superOver.inning2.overs)
+                                                    : score.overs}</b> overs.
                                 </p>
+                                {match.currentInning === 1 && (
+                                    <button className="pd-cta-primary innings-btn" onClick={handleSwitchInning} disabled={actionLoading}>
+                                        {actionLoading ? <Loader2 className="animate-spin" /> : <Play size={16} fill="currentColor" />}
+                                        START 2ND INNINGS
+                                    </button>
+                                )}
                             </div>
                         ) : needsNewBowler ? (
                             <div className="toss-container" style={{ marginTop: 24, border: '1px solid #3b82f6' }}>
@@ -631,7 +722,9 @@ function MatchScoringContent() {
                                         {match.battingTeam?.players?.filter((p: any) =>
                                             p.name !== match.activePlayers.striker &&
                                             p.name !== match.activePlayers.nonStriker &&
-                                            !(score.dismissedPlayers || []).includes(p.name)
+                                            !(match.isSuperOver
+                                                ? (match.currentInning === 1 ? match.superOver.inning1.dismissedPlayers : match.superOver.inning2.dismissedPlayers)
+                                                : (score.dismissedPlayers || [])).includes(p.name)
                                         ).map((p: any) => (
                                             <option key={p.name} value={p.name}>{p.name}</option>
                                         ))}
@@ -665,6 +758,81 @@ function MatchScoringContent() {
                                     <button disabled={scoringBall} className="extra-btn" onClick={() => handleScoreBall(1, 0, 'b')}>BYE</button>
                                     <button disabled={scoringBall} className="extra-btn" onClick={() => handleScoreBall(1, 0, 'lb')}>L-BYE</button>
                                     <button disabled={scoringBall} className="wicket-btn" onClick={triggerWicket}>WICKET</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Mini Scorecard for Organizer */}
+                        {match.status !== 'Scheduled' && (
+                            <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <Trophy size={18} color="#fbbf24" /> Mini Scorecard
+                                </h3>
+
+                                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, overflow: 'hidden' }}>
+                                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 16px', fontSize: 12, fontWeight: 700, color: '#22c55e', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        BATTING: {match.battingTeam?.name}
+                                    </div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                        <thead>
+                                            <tr style={{ textAlign: 'left', color: '#64748b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <th style={{ padding: '10px 16px' }}>Batter</th>
+                                                <th style={{ padding: '10px 8px' }}>R</th>
+                                                <th style={{ padding: '10px 8px' }}>B</th>
+                                                <th style={{ padding: '10px 8px' }}>4s</th>
+                                                <th style={{ padding: '10px 8px' }}>6s</th>
+                                                <th style={{ padding: '10px 8px' }}>SR</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {isPlayersSet && [match.activePlayers.striker, match.activePlayers.nonStriker].map(name => {
+                                                const stats = pStats[name] || { batRuns: 0, batBalls: 0, batFours: 0, batSixes: 0 };
+                                                return (
+                                                    <tr key={name} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                                        <td style={{ padding: '10px 16px', fontWeight: 600 }}>{name} {name === match.activePlayers.striker && '🏏'}</td>
+                                                        <td style={{ padding: '10px 8px', fontWeight: 700 }}>{stats.batRuns}</td>
+                                                        <td style={{ padding: '10px 8px', color: '#94a3b8' }}>{stats.batBalls}</td>
+                                                        <td style={{ padding: '10px 8px' }}>{stats.batFours || 0}</td>
+                                                        <td style={{ padding: '10px 8px' }}>{stats.batSixes || 0}</td>
+                                                        <td style={{ padding: '10px 8px', color: '#64748b' }}>{stats.batBalls > 0 ? ((stats.batRuns / stats.batBalls) * 100).toFixed(1) : '0.0'}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, overflow: 'hidden' }}>
+                                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px 16px', fontSize: 12, fontWeight: 700, color: '#3b82f6', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        BOWLING: {match.bowlingTeam?.name}
+                                    </div>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                                        <thead>
+                                            <tr style={{ textAlign: 'left', color: '#64748b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <th style={{ padding: '10px 16px' }}>Bowler</th>
+                                                <th style={{ padding: '10px 8px' }}>O</th>
+                                                <th style={{ padding: '10px 8px' }}>M</th>
+                                                <th style={{ padding: '10px 8px' }}>R</th>
+                                                <th style={{ padding: '10px 8px' }}>W</th>
+                                                <th style={{ padding: '10px 8px' }}>Econ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {isPlayersSet && [match.activePlayers.bowler].map(name => {
+                                                const stats = pStats[name] || { bowlRuns: 0, bowlBalls: 0, bowlWickets: 0, bowlMaidens: 0 };
+                                                return (
+                                                    <tr key={name} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                                        <td style={{ padding: '10px 16px', fontWeight: 600 }}>{name} 🎯</td>
+                                                        <td style={{ padding: '10px 8px' }}>{formatOvers(stats.bowlBalls)}</td>
+                                                        <td style={{ padding: '10px 8px' }}>0</td>
+                                                        <td style={{ padding: '10px 8px' }}>{stats.bowlRuns}</td>
+                                                        <td style={{ padding: '10px 8px', fontWeight: 700, color: '#3b82f6' }}>{stats.bowlWickets}</td>
+                                                        <td style={{ padding: '10px 8px', color: '#64748b' }}>{stats.bowlBalls > 0 ? ((stats.bowlRuns / (stats.bowlBalls / 6))).toFixed(2) : '0.00'}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}
@@ -704,11 +872,32 @@ function MatchScoringContent() {
                 .start-match-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; font-weight: 800; padding: 16px; border-radius: 14px; border: none; font-size: 15px; cursor: pointer; transition: all 0.2s; margin-top: 10px; }
                 .start-match-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(239,68,68,0.4); }
 
+                /* Premium Action Buttons */
+                .pd-completed-actions { display: flex; flex-direction: column; gap: 16px; align-items: center; margin-top: 24px; padding: 32px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 24px; backdrop-filter: blur(10px); }
+                .pd-cta-primary { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; max-width: 320px; margin: 0 auto; padding: 18px 32px; border-radius: 16px; border: none; font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: white; background: #3b82f6; box-shadow: 0 10px 30px rgba(59,130,246,0.3); }
+                .pd-cta-primary.super-over-btn { background: linear-gradient(135deg, #ef4444, #b91c1c); box-shadow: 0 10px 40px rgba(239,68,68,0.3); }
+                .pd-cta-primary.innings-btn { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 10px 40px rgba(16,185,129,0.3); }
+                .pd-cta-primary:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 20px 50px rgba(239,68,68,0.5); }
+                .pd-cta-primary:active { transform: translateY(-2px) scale(1); }
+                
+                .pd-cta-secondary { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; max-width: 320px; padding: 16px 32px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #e2e8f0; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(5px); }
+                .pd-cta-secondary:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: #fff; transform: translateY(-2px); }
+                
+                @media (min-width: 640px) {
+                    .pd-completed-actions { flex-direction: row; justify-content: center; }
+                    .pd-cta-primary, .pd-cta-secondary { width: auto; }
+                }
+
                 /* Live Scoreboard */
                 .live-container { display: flex; flex-direction: column; gap: 24px; }
                 .huge-scoreboard { background: radial-gradient(circle at top, rgba(34,197,94,0.15), rgba(8,12,24,0.9)); border: 1px solid rgba(34,197,94,0.3); border-radius: 24px; padding: 40px 20px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+                .huge-scoreboard.completed { background: radial-gradient(circle at top, rgba(251,191,36,0.15), rgba(8,12,24,0.9)); border: 1px solid rgba(251,191,36,0.3); }
+                .huge-scoreboard.super-over-active { background: radial-gradient(circle at top, rgba(239,68,68,0.15), rgba(8,12,24,0.9)); border: 1px solid rgba(239,68,68,0.3); }
                 .huge-inning { font-size: 12px; font-weight: 800; color: #22c55e; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; background: rgba(34,197,94,0.1); display: inline-block; padding: 4px 12px; border-radius: 100px; border: 1px solid rgba(34,197,94,0.2); }
+                .huge-scoreboard.completed .huge-inning { color: #fbbf24; background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.2); }
+                .huge-scoreboard.super-over-active .huge-inning { color: #ef4444; background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.2); }
                 .huge-score { font-size: clamp(4rem, 15vw, 6rem); font-weight: 900; line-height: 1; color: #fff; text-shadow: 0 0 40px rgba(34,197,94,0.4); display: flex; align-items: baseline; justify-content: center; gap: 5px; }
+                .huge-scoreboard.completed .huge-score { text-shadow: 0 0 40px rgba(251,191,36,0.4); }
                 .huge-wickets { font-size: clamp(2rem, 8vw, 3rem); color: #cbd5e1; }
                 .huge-overs { font-size: 18px; font-weight: 600; color: #94a3b8; margin-top: 10px; }
                 .huge-overs span { color: #f8fafc; font-weight: 800; font-size: 22px; }

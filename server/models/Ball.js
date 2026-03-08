@@ -12,6 +12,10 @@ const BallSchema = new mongoose.Schema({
         required: true,
         enum: [1, 2] // 1st innings or 2nd innings
     },
+    isSuperOver: {
+        type: Boolean,
+        default: false
+    },
     over: {
         type: Number, // Example: 1 (for the 1st over), 2, etc.
         required: true

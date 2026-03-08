@@ -8,6 +8,7 @@ import api from '../../utils/api';
 import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import Footer from '../../components/Footer';
+import { Suspense } from 'react';
 
 // ── GOOGLE ICON SVG ─────────────────────────────
 function GoogleIcon() {
@@ -26,7 +27,7 @@ function Particle({ style }: { style: React.CSSProperties }) {
     return <div className="auth-particle" style={style} />;
 }
 
-export default function AuthPage() {
+function AuthPageContent() {
     const searchParams = useSearchParams();
     const modeParam = searchParams.get('mode');
     const initialMode = modeParam === 'signup' ? 'signup' : 'login';
@@ -137,6 +138,7 @@ export default function AuthPage() {
                             {(['login', 'signup'] as const).map(tab => (
                                 <button
                                     key={tab}
+                                    suppressHydrationWarning
                                     onClick={() => switchMode(tab)}
                                     style={{
                                         flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700,
@@ -154,6 +156,7 @@ export default function AuthPage() {
                         {/* Google Button */}
                         <button
                             onClick={handleGoogleLogin}
+                            suppressHydrationWarning
                             style={{
                                 width: '100%', padding: '13px 20px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.12)',
                                 background: 'rgba(255,255,255,0.05)', color: '#f8fafc', fontSize: 15, fontWeight: 600,
@@ -194,6 +197,7 @@ export default function AuthPage() {
                                                     type="text" name="name" value={form.name} onChange={handleChange}
                                                     placeholder="Virat Kohli"
                                                     required={mode === 'signup'}
+                                                    suppressHydrationWarning
                                                     style={inputStyle}
                                                 />
                                             </div>
@@ -210,6 +214,7 @@ export default function AuthPage() {
                                         type="email" name="email" value={form.email} onChange={handleChange}
                                         placeholder="you@example.com"
                                         required
+                                        suppressHydrationWarning
                                         style={inputStyle}
                                     />
                                 </div>
@@ -223,6 +228,7 @@ export default function AuthPage() {
                                         type={showPass ? 'text' : 'password'} name="password" value={form.password} onChange={handleChange}
                                         placeholder={mode === 'signup' ? 'Min 6 characters' : 'Your password'}
                                         required
+                                        suppressHydrationWarning
                                         style={{ ...inputStyle, paddingRight: 48 }}
                                     />
                                     <button type="button" onClick={() => setShowPass(!showPass)}
@@ -308,6 +314,18 @@ export default function AuthPage() {
         }
       `}</style>
         </div>
+    );
+}
+
+export default function AuthPage() {
+    return (
+        <Suspense fallback={
+            <div style={{ minHeight: '100vh', background: '#0a0e1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 40, height: 40, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#22c55e', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            </div>
+        }>
+            <AuthPageContent />
+        </Suspense>
     );
 }
 

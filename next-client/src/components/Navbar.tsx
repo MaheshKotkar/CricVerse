@@ -6,6 +6,7 @@ import { Menu, X, Zap } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 const navLinks = [
+  { label: 'Live Scores', href: '/matches/live' },
   { label: 'Features', href: '/#features' },
   { label: 'How It Works', href: '/#how-it-works' },
   { label: 'Stats', href: '/#social-proof' },

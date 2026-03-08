@@ -67,6 +67,7 @@ router.get('/tournaments/:tournamentId/matches', async (req, res) => {
         const matches = await Match.find({ tournament: req.params.tournamentId })
             .populate('teamA', 'name logo')
             .populate('teamB', 'name logo')
+            .populate('result.winningTeam', 'name')
             .sort({ date: 1 }); // Ascending order by date
 
         res.status(200).json({ success: true, count: matches.length, data: matches });
@@ -81,12 +82,13 @@ router.get('/tournaments/:tournamentId/matches', async (req, res) => {
 // ── @access  Public
 router.get('/matches/upcoming', async (req, res) => {
     try {
-        const matches = await Match.find({ status: { $in: ['Scheduled', 'Live'] } })
+        const matches = await Match.find({ status: { $in: ['Scheduled', 'Live', 'Completed'] } })
             .populate('teamA', 'name logo')
             .populate('teamB', 'name logo')
             .populate('tournament', 'name status format')
-            .sort({ date: 1 })
-            .limit(10); // get next 10 matches
+            .populate('result.winningTeam', 'name')
+            .sort({ status: -1, date: -1 }) // Live usually starts with L, Scheduled with S. 
+            .limit(15);
 
         res.status(200).json({ success: true, count: matches.length, data: matches });
     } catch (err) {
@@ -109,7 +111,8 @@ router.get('/matches/:id', async (req, res) => {
             .populate('bowlingTeam')
             .populate('activePlayers.striker')
             .populate('activePlayers.nonStriker')
-            .populate('activePlayers.bowler');
+            .populate('activePlayers.bowler')
+            .populate('result.winningTeam');
 
         if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
 
@@ -205,25 +208,31 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
         }
 
         const inningKey = match.currentInning === 1 ? 'inning1' : 'inning2';
+        const dataPath = match.isSuperOver ? match.superOver : match.score;
 
         // Update Score
-        match.score[inningKey].runs += (runs + extras);
+        dataPath[inningKey].runs += (runs + extras);
         if (isWicket) {
-            match.score[inningKey].wickets += 1;
+            dataPath[inningKey].wickets += 1;
             if (playerDismissed) {
-                if (!match.score[inningKey].dismissedPlayers) {
-                    match.score[inningKey].dismissedPlayers = [];
+                if (!dataPath[inningKey].dismissedPlayers) {
+                    dataPath[inningKey].dismissedPlayers = [];
                 }
-                if (!match.score[inningKey].dismissedPlayers.includes(playerDismissed)) {
-                    match.score[inningKey].dismissedPlayers.push(playerDismissed);
-                    match.markModified('score');
+                if (!dataPath[inningKey].dismissedPlayers.includes(playerDismissed)) {
+                    dataPath[inningKey].dismissedPlayers.push(playerDismissed);
                 }
             }
         }
 
         // Overs format: 1.1, 1.2, ..., 1.5, 2.0
         if (updatedOverCount !== undefined) {
-            match.score[inningKey].overs = updatedOverCount;
+            dataPath[inningKey].overs = updatedOverCount;
+        }
+
+        if (match.isSuperOver) {
+            match.markModified('superOver');
+        } else {
+            match.markModified('score');
         }
 
         // Initialize playerStats Map if not present
@@ -233,7 +242,11 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
 
         const ensureStats = (pName) => {
             if (pName && !match.playerStats.has(pName)) {
-                match.playerStats.set(pName, { batRuns: 0, batBalls: 0, bowlRuns: 0, bowlBalls: 0, bowlWickets: 0 });
+                match.playerStats.set(pName, {
+                    batRuns: 0, batBalls: 0, batFours: 0, batSixes: 0,
+                    isOut: false, dismissalType: null,
+                    bowlRuns: 0, bowlBalls: 0, bowlWickets: 0, bowlMaidens: 0
+                });
             }
         };
 
@@ -249,13 +262,13 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
         const bStats = match.playerStats.get(oldBowler);
 
         // Batting stats
-        // A batsman faces a ball on legal deliveries, byes, and leg-byes. Wides and No-balls do not count as a ball faced.
         if (extraType !== 'wd' && extraType !== 'nb') {
             sStats.batBalls += 1;
         }
-        // Runs from the bat are only added if it's not any kind of extra (or if it's a no-ball where the batsman hits the ball, the runs hit off the bat count, but the team gets +1 extra for the NB. In this simple engine, `runs` represents runs off the bat, `extras` represents penalty. So we add `runs` to batsman even on a No Ball).
         if (extraType !== 'wd' && extraType !== 'b' && extraType !== 'lb') {
             sStats.batRuns += runs;
+            if (runs === 4) sStats.batFours += 1;
+            if (runs === 6) sStats.batSixes += 1;
         }
 
         // Bowling stats
@@ -269,17 +282,81 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
             bStats.bowlRuns += runs;
         }
 
-        if (isWicket && wicketType !== 'run out') {
-            bStats.bowlWickets += 1;
+        if (isWicket) {
+            if (wicketType !== 'run out') {
+                bStats.bowlWickets += 1;
+            }
+            if (playerDismissed) {
+                ensureStats(playerDismissed);
+                const victimStats = match.playerStats.get(playerDismissed);
+                if (victimStats) {
+                    victimStats.isOut = true;
+                    victimStats.dismissalType = wicketType || 'out';
+                    match.playerStats.set(playerDismissed, victimStats);
+                }
+            }
         }
 
         match.playerStats.set(oldStriker, sStats);
         match.playerStats.set(oldBowler, bStats);
 
-        // Update active players if provided (for rotation or new bowler)
+        // Update active players if provided
         if (striker) match.activePlayers.striker = striker;
         if (nonStriker) match.activePlayers.nonStriker = nonStriker;
         if (bowler) match.activePlayers.bowler = bowler;
+
+        // Check for Match Completion
+        if (match.isSuperOver) {
+            const currentRuns = dataPath[inningKey].runs;
+            const wickets = dataPath[inningKey].wickets;
+            const oversPlayed = dataPath[inningKey].overs;
+            const MAX_OVERS = 1.0;
+            const MAX_WICKETS = 2; // Rule: 3 batsmen allowed, 2 wickets ends it
+
+            if (match.currentInning === 2) {
+                const target = match.target;
+                if (currentRuns >= target) {
+                    match.status = 'Completed';
+                    match.result.winningTeam = match.battingTeam;
+                    const wicketsLeft = MAX_WICKETS - wickets;
+                    match.result.margin = `Won by ${wicketsLeft} wickets (Super Over)`;
+                } else if (wickets >= MAX_WICKETS || oversPlayed >= MAX_OVERS) {
+                    match.status = 'Completed';
+                    if (currentRuns < target - 1) {
+                        match.result.winningTeam = match.bowlingTeam;
+                        match.result.margin = `Won by ${target - 1 - currentRuns} runs (Super Over)`;
+                    } else {
+                        match.result.margin = 'Super Over Tied';
+                    }
+                }
+            } else {
+                // Inning 1 of Super Over
+                if (wickets >= MAX_WICKETS || oversPlayed >= MAX_OVERS) {
+                    // Force inning complete message to frontend
+                    // We'll handle target setter in switch-inning
+                }
+            }
+        } else if (match.currentInning === 2) {
+            const currentRuns = match.score.inning2.runs;
+            const target = match.target;
+            const wickets = match.score.inning2.wickets;
+            const oversPlayed = match.score.inning2.overs;
+
+            if (currentRuns >= target) {
+                match.status = 'Completed';
+                match.result.winningTeam = match.battingTeam;
+                const wicketsLeft = 11 - wickets;
+                match.result.margin = `Won by ${wicketsLeft} wickets`;
+            } else if (wickets >= 10 || oversPlayed >= match.overs) {
+                match.status = 'Completed';
+                if (currentRuns < target - 1) {
+                    match.result.winningTeam = match.bowlingTeam;
+                    match.result.margin = `Won by ${target - 1 - currentRuns} runs`;
+                } else {
+                    match.result.margin = 'Match Tied';
+                }
+            }
+        }
 
         await match.save();
 
@@ -292,8 +369,9 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
         const newBall = await Ball.create({
             match: matchId,
             inning: match.currentInning,
-            over: Math.floor(match.score[inningKey].overs), // Using integer over for simple grouping
-            ball: Math.round((match.score[inningKey].overs % 1) * 10), // The decimal part (1 to 6)
+            isSuperOver: match.isSuperOver,
+            over: Math.floor(dataPath[inningKey].overs),
+            ball: Math.round((dataPath[inningKey].overs % 1) * 10),
             bowler: match.activePlayers.bowler,
             striker: match.activePlayers.striker,
             nonStriker: match.activePlayers.nonStriker,
@@ -308,6 +386,88 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
         res.status(201).json({ success: true, data: { match: populatedMatch, ball: newBall } });
     } catch (err) {
         console.error("Score Error:", err);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+});
+
+// ── @route   PATCH /api/matches/:id/switch-inning
+// ── @desc    Transition from 1st to 2nd inning
+// ── @access  Private/Organizer
+router.patch('/matches/:id/switch-inning', protect, authorize('organizer', 'admin'), async (req, res) => {
+    try {
+        const match = await Match.findById(req.params.id);
+        if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+
+        if (match.currentInning !== 1) {
+            return res.status(400).json({ success: false, message: 'Already in 2nd inning or match completed' });
+        }
+
+        const dataPath = match.isSuperOver ? match.superOver : match.score;
+
+        // Set Target
+        match.target = dataPath.inning1.runs + 1;
+        match.currentInning = 2;
+
+        // Swap batting and bowling teams
+        const temp = match.battingTeam;
+        match.battingTeam = match.bowlingTeam;
+        match.bowlingTeam = temp;
+
+        // Reset active players for selection
+        match.activePlayers = { striker: null, nonStriker: null, bowler: null };
+
+        await match.save();
+
+        const populatedMatch = await Match.findById(match._id)
+            .populate('teamA')
+            .populate('teamB')
+            .populate('battingTeam')
+            .populate('bowlingTeam');
+
+        res.status(200).json({ success: true, data: populatedMatch });
+    } catch (err) {
+        console.error("Switch Inning Error:", err);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+});
+
+// ── @route   PATCH /api/matches/:id/start-super-over
+// ── @desc    Initialize Super Over
+// ── @access  Private/Organizer
+router.patch('/matches/:id/start-super-over', protect, authorize('organizer', 'admin'), async (req, res) => {
+    try {
+        const match = await Match.findById(req.params.id);
+        if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+        if (match.result.margin !== 'Match Tied' || match.status !== 'Completed') {
+            return res.status(400).json({ success: false, message: 'Match must be tied and completed to start Super Over' });
+        }
+
+        match.isSuperOver = true;
+        match.currentInning = 1;
+        match.status = 'Live';
+        match.result = { winningTeam: null, margin: '' }; // Clear result
+
+        // Rule: Team batting 2nd in main match bats 1st in Super Over
+        // But battingTeam currently is the one who finished batting 2nd.
+        // So we keep current battingTeam as Inning 1 batting team for Super Over.
+
+        match.activePlayers = { striker: null, nonStriker: null, bowler: null };
+        match.superOver = {
+            inning1: { runs: 0, wickets: 0, overs: 0, dismissedPlayers: [] },
+            inning2: { runs: 0, wickets: 0, overs: 0, dismissedPlayers: [] }
+        };
+
+        await match.save();
+
+        const populatedMatch = await Match.findById(match._id)
+            .populate('teamA')
+            .populate('teamB')
+            .populate('battingTeam')
+            .populate('bowlingTeam');
+
+        res.status(200).json({ success: true, data: populatedMatch });
+    } catch (err) {
+        console.error("Start Super Over Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
 });

@@ -54,8 +54,8 @@ router.get('/', protect, authorize('organizer', 'admin'), async (req, res) => {
 
 // ── @route   GET /api/teams/:id
 // ── @desc    Get a single team by ID
-// ── @access  Private/Organizer
-router.get('/:id', protect, authorize('organizer', 'admin'), async (req, res) => {
+// ── @access  Public
+router.get('/:id', async (req, res) => {
     try {
         const team = await Team.findById(req.params.id);
 
@@ -63,10 +63,6 @@ router.get('/:id', protect, authorize('organizer', 'admin'), async (req, res) =>
             return res.status(404).json({ success: false, message: 'Team not found' });
         }
 
-        // Make sure the user owns the team, or is an admin
-        if (team.organizer.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(403).json({ success: false, message: 'Not authorized to access this team' });
-        }
 
         res.status(200).json({ success: true, data: team });
     } catch (err) {

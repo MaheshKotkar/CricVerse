@@ -167,8 +167,8 @@ function PlayerDashboardContent() {
                                             <Trophy size={14} color="#a855f7" />
                                             <span>{m.tournament?.name || 'Unknown Tournament'}</span>
                                         </div>
-                                        <div className={`pd-match-status ${m.status === 'Live' ? 'live' : ''}`}>
-                                            {m.status === 'Live' ? '● LIVE' : m.status}
+                                        <div className={`pd-match-status ${m.status === 'Live' ? 'live' : m.status === 'Completed' ? 'completed' : ''}`}>
+                                            {m.status === 'Live' ? '● LIVE' : m.status === 'Completed' ? 'COMPLETED' : m.status}
                                         </div>
                                     </div>
 
@@ -182,6 +182,21 @@ function PlayerDashboardContent() {
                                                 )}
                                             </div>
                                             <div className="pd-team-name">{m.teamA?.name || 'Team A'}</div>
+                                            {m.status === 'Completed' && (
+                                                <div className="pd-team-score-container" style={{ marginTop: 6 }}>
+                                                    {m.isSuperOver && (
+                                                        <div className="pd-team-score-reg" style={{ fontSize: 13, color: '#475569', marginBottom: 2 }}>
+                                                            Reg: {m.score?.inning1?.runs}/{m.score?.inning1?.wickets}
+                                                        </div>
+                                                    )}
+                                                    <div className="pd-team-score-main" style={{ fontSize: 18, fontWeight: 900, color: m.result?.winningTeam?._id === m.teamA?._id ? '#22c55e' : '#475569' }}>
+                                                        {m.isSuperOver
+                                                            ? `${m.superOver?.inning1?.runs}/${m.superOver?.inning1?.wickets} (SO)`
+                                                            : `${m.score?.inning1?.runs}/${m.score?.inning1?.wickets}`
+                                                        }
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="pd-match-vs">VS</div>
                                         <div className="pd-team">
@@ -193,8 +208,30 @@ function PlayerDashboardContent() {
                                                 )}
                                             </div>
                                             <div className="pd-team-name">{m.teamB?.name || 'Team B'}</div>
+                                            {m.status === 'Completed' && (
+                                                <div className="pd-team-score-container" style={{ marginTop: 6 }}>
+                                                    {m.isSuperOver && (
+                                                        <div className="pd-team-score-reg" style={{ fontSize: 13, color: '#475569', marginBottom: 2 }}>
+                                                            Reg: {m.score?.inning2?.runs}/{m.score?.inning2?.wickets}
+                                                        </div>
+                                                    )}
+                                                    <div className="pd-team-score-main" style={{ fontSize: 18, fontWeight: 900, color: m.result?.winningTeam?._id === m.teamB?._id ? '#22c55e' : '#475569' }}>
+                                                        {m.isSuperOver
+                                                            ? `${m.superOver?.inning2?.runs}/${m.superOver?.inning2?.wickets} (SO)`
+                                                            : `${m.score?.inning2?.runs}/${m.score?.inning2?.wickets}`
+                                                        }
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
+
+                                    {m.status === 'Completed' && (
+                                        <div className="pd-match-result" style={{ textAlign: 'center', background: 'rgba(250,204,21,0.05)', border: '1px solid rgba(250,204,21,0.1)', padding: '10px', borderRadius: '12px', marginBottom: 20, color: '#facc15', fontSize: 13, fontWeight: 800 }}>
+                                            🏆 Result: {m.result?.winningTeam?.name ? `${m.result.winningTeam.name} ${m.result.margin}` : m.result?.margin || 'Match Completed'}
+                                            {m.isSuperOver && <span style={{ marginLeft: 8, fontSize: 9, background: '#ef4444', color: '#fff', padding: '1px 5px', borderRadius: 4, verticalAlign: 'middle' }}>SUPER OVER RESULT</span>}
+                                        </div>
+                                    )}
 
                                     <div className="pd-match-footer">
                                         <div className="pd-match-meta">
@@ -373,6 +410,7 @@ function PlayerDashboardContent() {
                 .pd-match-tour { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #e2e8f0; }
                 .pd-match-status { font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 100px; text-transform: uppercase; background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); }
                 .pd-match-status.live { background: rgba(239,68,68,0.15); color: #ef4444; border-color: rgba(239,68,68,0.3); animation: pulse 2s infinite; }
+                .pd-match-status.completed { background: rgba(34,197,94,0.1); color: #22c55e; border-color: rgba(34,197,94,0.2); }
                 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
                 .pd-match-teams { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 24px; }
                 .pd-team { display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 1; min-width: 0; }

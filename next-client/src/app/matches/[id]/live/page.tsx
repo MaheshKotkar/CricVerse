@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Link from 'next/link';
+import MatchScorecard from '@/components/MatchScorecard';
 
 export default function PublicLiveScorePage() {
     const params = useParams();
@@ -16,6 +17,7 @@ export default function PublicLiveScorePage() {
 
     const [match, setMatch] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'summary' | 'scorecard'>('summary');
 
     const fetchMatch = async () => {
         try {
@@ -51,7 +53,9 @@ export default function PublicLiveScorePage() {
     if (!match) return <div className="pd-shell" style={{ padding: 40, textAlign: 'center' }}>Match not found.</div>;
 
     const inningKey = match.currentInning === 1 ? 'inning1' : 'inning2';
-    const score = match.score?.[inningKey] || { runs: 0, wickets: 0, overs: 0 };
+    const score = match.isSuperOver
+        ? (match.currentInning === 1 ? match.superOver?.inning1 : match.superOver?.inning2)
+        : (match.score?.[inningKey] || { runs: 0, wickets: 0, overs: 0 });
     const isPlayersSet = match.activePlayers?.striker && match.activePlayers?.nonStriker && match.activePlayers?.bowler;
 
     // Player Stats Helper
@@ -114,6 +118,22 @@ export default function PublicLiveScorePage() {
                     </div>
                 </div>
 
+                {/* Tab Switcher */}
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', padding: 4, borderRadius: 12, marginBottom: 24, border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <button
+                        onClick={() => setActiveTab('summary')}
+                        style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: activeTab === 'summary' ? '#22c55e' : 'transparent', color: activeTab === 'summary' ? '#000' : '#94a3b8', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                        Summary
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('scorecard')}
+                        style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: activeTab === 'scorecard' ? '#22c55e' : 'transparent', color: activeTab === 'scorecard' ? '#000' : '#94a3b8', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                        Scorecard
+                    </button>
+                </div>
+
                 {match.status === 'Scheduled' && (
                     <div className="toss-container" style={{ textAlign: 'center', padding: '40px 20px' }}>
                         <h2 className="toss-title" style={{ justifyContent: 'center' }}><Calendar size={24} color="#3b82f6" /> Scheduled Match</h2>
@@ -124,16 +144,44 @@ export default function PublicLiveScorePage() {
                 )}
 
                 {match.status === 'Completed' && (
-                    <div className="toss-container" style={{ textAlign: 'center', padding: '40px 20px', borderColor: '#10b981' }}>
-                        <h2 className="toss-title" style={{ justifyContent: 'center', color: '#10b981' }}><Trophy size={24} /> Match Completed</h2>
-                        <p style={{ color: '#94a3b8', fontSize: 15, maxWidth: 400, margin: '0 auto' }}>
-                            The match has concluded. Check back later for full scorecards.
-                        </p>
+                    <div className="live-container">
+                        <div className="huge-scoreboard completed" style={{ borderColor: '#fbbf24', background: 'radial-gradient(circle at top, rgba(251,191,36,0.15), rgba(8,12,24,0.9))' }}>
+                            <div className="huge-inning" style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.1)', borderColor: 'rgba(251,191,36,0.2)' }}>Match Completed</div>
+                            <div style={{ fontSize: 28, fontWeight: 900, color: '#fbbf24', marginBottom: 24, textShadow: '0 0 20px rgba(251,191,36,0.3)' }}>
+                                🏆 {match.result?.winningTeam?.name ? `${match.result.winningTeam.name} ${match.result.margin}` : match.result?.margin}
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 20, border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8, fontWeight: 600 }}>{match.teamA?.name}</div>
+                                    <div style={{ fontSize: 28, fontWeight: 900, color: match.result?.winningTeam?._id === match.teamA?._id ? '#22c55e' : '#fff' }}>
+                                        {match.score?.inning1?.runs}/{match.score?.inning1?.wickets}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#64748b' }}>({match.score?.inning1?.overs} ov)</div>
+                                    {match.isSuperOver && (
+                                        <div style={{ marginTop: 10, fontSize: 12, color: '#ef4444', fontWeight: 700 }}>
+                                            Super Over: {match.superOver?.inning1?.runs}/{match.superOver?.inning1?.wickets}
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 20, border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8, fontWeight: 600 }}>{match.teamB?.name}</div>
+                                    <div style={{ fontSize: 28, fontWeight: 900, color: match.result?.winningTeam?._id === match.teamB?._id ? '#22c55e' : '#fff' }}>
+                                        {match.score?.inning2?.runs}/{match.score?.inning2?.wickets}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#64748b' }}>({match.score?.inning2?.overs} ov)</div>
+                                    {match.isSuperOver && (
+                                        <div style={{ marginTop: 10, fontSize: 12, color: '#ef4444', fontWeight: 700 }}>
+                                            Super Over: {match.superOver?.inning2?.runs}/{match.superOver?.inning2?.wickets}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
-                {/* Main Scoreboard Area */}
-                {match.status === 'Live' && (
+                {match.status === 'Live' && activeTab === 'summary' && (
                     <div className="live-container">
                         {/* Huge Scoreboard */}
                         <div className="huge-scoreboard">
@@ -200,6 +248,11 @@ export default function PublicLiveScorePage() {
                             </div>
                         )}
                     </div>
+                )}
+
+                {/* Detailed Scorecard Tab */}
+                {activeTab === 'scorecard' && (
+                    <MatchScorecard match={match} />
                 )}
             </div>
 
