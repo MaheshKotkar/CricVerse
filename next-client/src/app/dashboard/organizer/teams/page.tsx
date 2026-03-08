@@ -61,7 +61,11 @@ function TeamList() {
                                     overflow: 'hidden'
                                 }}>
                                     {team.logo ? (
-                                        <img src={team.logo.startsWith('/') ? team.logo : `/${team.logo}`} alt={team.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        <img
+                                            src={team.logo.startsWith('http') ? team.logo : `http://localhost:5000${team.logo.startsWith('/') ? '' : '/'}${team.logo}`}
+                                            alt={team.name}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
                                     ) : (
                                         '🛡️'
                                     )}

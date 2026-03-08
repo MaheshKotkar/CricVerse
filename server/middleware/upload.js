@@ -1,39 +1,30 @@
 const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const path = require('path');
+require('dotenv').config();
 
-// Set storage engine
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/');
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Check file type
-function checkFileType(file, cb) {
-    // Allowed extensions
-    const filetypes = /jpeg|jpg|png|webp|gif/;
-    // Check extension
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-    // Check mime
-    const mimetype = filetypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-        return cb(null, true);
-    } else {
-        cb('Error: Images only!');
-    }
-}
+// Set up Cloudinary storage for Multer
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'cricverse_logos',
+        allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'gif'],
+        public_id: (req, file) => Date.now() + '-' + path.parse(file.originalname).name,
+    },
+});
 
 // Init upload
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 5000000 }, // 5MB
-    fileFilter: function (req, file, cb) {
-        checkFileType(file, cb);
-    }
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 });
 
 module.exports = upload;

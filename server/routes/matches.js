@@ -312,4 +312,25 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
     }
 });
 
+// ── @route   PATCH /api/matches/:id/cancel
+// ── @desc    Cancel a match
+// ── @access  Private/Organizer
+router.patch('/matches/:id/cancel', protect, authorize('organizer', 'admin'), async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const match = await Match.findById(req.params.id);
+
+        if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+
+        match.status = 'Cancelled';
+        match.cancelReason = reason || 'No specific reason provided';
+        await match.save();
+
+        res.status(200).json({ success: true, data: match });
+    } catch (err) {
+        console.error("Cancel Match Error:", err);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+});
+
 module.exports = router;

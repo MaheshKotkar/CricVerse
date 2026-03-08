@@ -174,12 +174,24 @@ function PlayerDashboardContent() {
 
                                     <div className="pd-match-teams">
                                         <div className="pd-team">
-                                            <div className="pd-team-logo">🛡️</div>
+                                            <div className="pd-team-logo">
+                                                {m.teamA?.logo ? (
+                                                    <img src={m.teamA.logo.startsWith('http') ? m.teamA.logo : `http://localhost:5000${m.teamA.logo.startsWith('/') ? '' : '/'}${m.teamA.logo}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '14px' }} />
+                                                ) : (
+                                                    '🛡️'
+                                                )}
+                                            </div>
                                             <div className="pd-team-name">{m.teamA?.name || 'Team A'}</div>
                                         </div>
                                         <div className="pd-match-vs">VS</div>
                                         <div className="pd-team">
-                                            <div className="pd-team-logo">🛡️</div>
+                                            <div className="pd-team-logo">
+                                                {m.teamB?.logo ? (
+                                                    <img src={m.teamB.logo.startsWith('http') ? m.teamB.logo : `http://localhost:5000${m.teamB.logo.startsWith('/') ? '' : '/'}${m.teamB.logo}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '14px' }} />
+                                                ) : (
+                                                    '🛡️'
+                                                )}
+                                            </div>
                                             <div className="pd-team-name">{m.teamB?.name || 'Team B'}</div>
                                         </div>
                                     </div>

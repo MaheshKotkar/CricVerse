@@ -87,12 +87,24 @@ export default function PublicLiveScorePage() {
                     </div>
                     <div className="score-teams">
                         <div className="score-team">
-                            <div className="score-logo">{match.teamA?.logo ? <img src={match.teamA.logo} alt="" /> : '🛡️'}</div>
+                            <div className="score-logo">
+                                {match.teamA?.logo ? (
+                                    <img src={match.teamA.logo.startsWith('http') ? match.teamA.logo : `http://localhost:5000${match.teamA.logo.startsWith('/') ? '' : '/'}${match.teamA.logo}`} alt="" />
+                                ) : (
+                                    '🛡️'
+                                )}
+                            </div>
                             <div className="score-name">{match.teamA?.name}</div>
                         </div>
                         <div className="score-vs">VS</div>
                         <div className="score-team">
-                            <div className="score-logo">{match.teamB?.logo ? <img src={match.teamB.logo} alt="" /> : '🛡️'}</div>
+                            <div className="score-logo">
+                                {match.teamB?.logo ? (
+                                    <img src={match.teamB.logo.startsWith('http') ? match.teamB.logo : `http://localhost:5000${match.teamB.logo.startsWith('/') ? '' : '/'}${match.teamB.logo}`} alt="" />
+                                ) : (
+                                    '🛡️'
+                                )}
+                            </div>
                             <div className="score-name">{match.teamB?.name}</div>
                         </div>
                     </div>

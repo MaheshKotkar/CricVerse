@@ -319,8 +319,13 @@ function AdminDashboardContent() {
                                                     <td className="ad-table-sub">{t.organizer?.name || '—'}</td>
                                                     <td><span className="ad-teams-count">{t.teams?.length || 0}</span></td>
                                                     <td>
-                                                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                                            <button className="ad-action-btn delete" onClick={() => deleteTournament(t._id, t.name)}><Trash2 size={14} /></button>
+                                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                                            <Link href={`/dashboard/admin/tournaments/${t._id}`} className="ad-action-btn edit" title="View Details">
+                                                                <Eye size={14} />
+                                                            </Link>
+                                                            <button className="ad-action-btn delete" onClick={() => deleteTournament(t._id, t.name)} title="Delete Tournament">
+                                                                <Trash2 size={14} />
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -345,7 +350,11 @@ function AdminDashboardContent() {
                                             <div className="ad-team-card-top">
                                                 <div className="ad-team-logo">
                                                     {t.logo ? (
-                                                        <img src={`http://localhost:5000/${t.logo.replace(/^\//, '')}`} alt={t.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                        <img
+                                                            src={t.logo.startsWith('http') ? t.logo : `http://localhost:5000/${t.logo.replace(/^\//, '')}`}
+                                                            alt={t.name}
+                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                        />
                                                     ) : (
                                                         <span style={{ fontSize: 22, fontWeight: 900 }}>{t.name?.[0]?.toUpperCase()}</span>
                                                     )}

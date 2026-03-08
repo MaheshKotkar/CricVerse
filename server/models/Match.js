@@ -27,8 +27,12 @@ const MatchSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Scheduled', 'Live', 'Completed'],
+        enum: ['Scheduled', 'Live', 'Completed', 'Cancelled'],
         default: 'Scheduled'
+    },
+    cancelReason: {
+        type: String,
+        default: null
     },
     toss: {
         wonBy: {

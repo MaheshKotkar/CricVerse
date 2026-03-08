@@ -22,6 +22,19 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
     const [showCreateMatch, setShowCreateMatch] = useState(false);
     const [newMatch, setNewMatch] = useState({ teamA: '', teamB: '', date: '', venue: '' });
 
+    // Cancellation State
+    const [cancelModalVisible, setCancelModalVisible] = useState(false);
+    const [cancelingMatchId, setCancelingMatchId] = useState<string | null>(null);
+    const [cancelReason, setCancelReason] = useState('');
+    const cancellationReasons = [
+        "Heavy rain",
+        "Poor visibility due to fog",
+        "Wet outfield that is unsafe for players",
+        "Poor lighting in stadiums without floodlights",
+        "Thunderstorms or lightning",
+        "Other (Custom Reason)"
+    ];
+
     const inputStyle: React.CSSProperties = {
         width: '100%',
         padding: '12px',
@@ -149,6 +162,27 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
         }
     };
 
+    const handleCancelMatch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!cancelingMatchId || !cancelReason) return;
+
+        setActionLoading(true);
+        const loadingToast = toast.loading('Cancelling Match...');
+        try {
+            await api.patch(`/matches/${cancelingMatchId}/cancel`, { reason: cancelReason });
+            // Update the local matches state
+            setMatches(prev => prev.map(m => m._id === cancelingMatchId ? { ...m, status: 'Cancelled' } : m));
+            toast.success('Match Cancelled!', { id: loadingToast });
+            setCancelModalVisible(false);
+            setCancelingMatchId(null);
+            setCancelReason('');
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to cancel match', { id: loadingToast });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     if (loading) return (
         <div style={{ minHeight: '100vh', background: '#0a0e1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Loader2 className="animate-spin" color="#3b82f6" size={40} />
@@ -203,6 +237,69 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
                     )}
                 </div>
 
+                {/* Cancel Match Modal */}
+                {cancelModalVisible && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0, 0, 0, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+                    }}>
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{
+                            background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400,
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                        }}>
+                            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>Cancel Match</h3>
+                            <p style={{ margin: '0 0 16px 0', fontSize: 14, color: '#94a3b8' }}>Please select or provide a reason for cancelling this match.</p>
+
+                            <form onSubmit={handleCancelMatch} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                <select
+                                    value={cancellationReasons.includes(cancelReason) ? cancelReason : (cancelReason ? 'Other (Custom Reason)' : '')}
+                                    onChange={(e) => {
+                                        if (e.target.value !== 'Other (Custom Reason)') setCancelReason(e.target.value);
+                                        else setCancelReason(''); // Clear it so they can type
+                                    }}
+                                    style={{ ...inputStyle, colorScheme: 'dark' }}
+                                    required
+                                >
+                                    <option value="" disabled style={{ background: '#1e293b', color: '#94a3b8' }}>Select a reason...</option>
+                                    {cancellationReasons.map((reason, idx) => (
+                                        <option key={idx} value={reason} style={{ background: '#1e293b', color: '#f8fafc' }}>{reason}</option>
+                                    ))}
+                                </select>
+
+                                {(!cancellationReasons.includes(cancelReason) && cancelReason !== '' || cancelReason === '' && document.querySelector('select')?.value === 'Other (Custom Reason)') && (
+                                    <input
+                                        type="text"
+                                        placeholder="Enter custom reason..."
+                                        value={cancelReason}
+                                        onChange={(e) => setCancelReason(e.target.value)}
+                                        style={inputStyle}
+                                        required
+                                        autoFocus
+                                    />
+                                )}
+
+                                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setCancelModalVisible(false); setCancelingMatchId(null); setCancelReason(''); }}
+                                        disabled={actionLoading}
+                                        style={{ padding: '10px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 600, opacity: actionLoading ? 0.6 : 1 }}
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={actionLoading || !cancelReason}
+                                        style={{ padding: '10px 16px', borderRadius: 8, background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800, opacity: (actionLoading || !cancelReason) ? 0.6 : 1 }}
+                                    >
+                                        {actionLoading ? 'Cancelling...' : 'Confirm Cancel'}
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+
                 {/* Body Grid */}
                 <div className="tdetail-grid">
                     {/* Teams Section */}
@@ -244,7 +341,13 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             {data.teams.length > 0 ? data.teams.map((team: any, index: number) => (
                                 <div key={team._id ? `${team._id}-${index}` : index} style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'rgba(15,22,41,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '14px' }}>
-                                    <div style={{ width: 42, height: 42, borderRadius: 10, background: 'linear-gradient(135deg, #1e293b, #0f172a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🛡️</div>
+                                    <div style={{ width: 42, height: 42, borderRadius: 10, background: 'linear-gradient(135deg, #1e293b, #0f172a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0, overflow: 'hidden' }}>
+                                        {team.logo ? (
+                                            <img src={team.logo.startsWith('http') ? team.logo : `http://localhost:5000${team.logo.startsWith('/') ? '' : '/'}${team.logo}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        ) : (
+                                            '🛡️'
+                                        )}
+                                    </div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{team.name}</div>
                                         <div style={{ fontSize: 12, color: '#64748b' }}>{team.players?.length || 0} Players</div>
@@ -334,16 +437,26 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
                                                         <Calendar size={13} /> {new Date(m.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                                                     </div>
-                                                    <span style={{ background: m.status === 'Live' ? '#ef4444' : 'rgba(255,255,255,0.05)', color: m.status === 'Live' ? '#fff' : '#94a3b8', padding: '4px 10px', borderRadius: 6, fontSize: 10 }}>● {m.status}</span>
+                                                    <span style={{ background: m.status === 'Live' ? '#ef4444' : m.status === 'Cancelled' ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.05)', color: m.status === 'Live' ? '#fff' : m.status === 'Cancelled' ? '#ef4444' : '#94a3b8', padding: '4px 10px', borderRadius: 6, fontSize: 10 }}>● {m.status}</span>
                                                 </div>
 
-                                                {(m.status === 'Scheduled' || m.status === 'Live') && (
-                                                    <Link href={`/dashboard/organizer/tournaments/${data._id}/matches/${m._id}/score`} style={{ textDecoration: 'none' }}>
-                                                        <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)' }}>
-                                                            <Play size={14} fill="currentColor" /> {m.status === 'Live' ? 'Score Live' : 'Start Match'}
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    {(m.status === 'Scheduled' || m.status === 'Live') && (
+                                                        <button
+                                                            onClick={() => { setCancelingMatchId(m._id); setCancelModalVisible(true); }}
+                                                            disabled={actionLoading}
+                                                            style={{ background: 'transparent', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', padding: '6px 12px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+                                                            Cancel
                                                         </button>
-                                                    </Link>
-                                                )}
+                                                    )}
+                                                    {(m.status === 'Scheduled' || m.status === 'Live') && (
+                                                        <Link href={`/dashboard/organizer/tournaments/${data._id}/matches/${m._id}/score`} style={{ textDecoration: 'none' }}>
+                                                            <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)' }}>
+                                                                <Play size={14} fill="currentColor" /> {m.status === 'Live' ? 'Score Live' : 'Start Match'}
+                                                            </button>
+                                                        </Link>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                                                 <div style={{ flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#f8fafc', wordBreak: 'break-word' }}>

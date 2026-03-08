@@ -3,17 +3,20 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Zap } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 const navLinks = [
-  { label: 'Features', href: '#features' },
-  { label: 'How It Works', href: '#how-it-works' },
-  { label: 'Stats', href: '#stats' },
-  { label: 'FAQ', href: '#faq' },
+  { label: 'Features', href: '/#features' },
+  { label: 'How It Works', href: '/#how-it-works' },
+  { label: 'Stats', href: '/#social-proof' },
+  { label: 'FAQ', href: '/#faq' },
 ];
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const isAuthPage = pathname === '/auth';
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -40,7 +43,7 @@ export default function Navbar() {
     >
       <div style={{ maxWidth: 1200, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {/* Logo */}
-        <Link href="#" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #22c55e, #16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(34,197,94,0.5)' }}>
             <span style={{ fontSize: 18 }}>🏏</span>
           </div>
@@ -65,12 +68,14 @@ export default function Navbar() {
         </div>
 
         {/* Desktop CTA */}
-        <div className="nav-cta" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <Link href="/auth" style={{ color: '#94a3b8', textDecoration: 'none', fontWeight: 500, fontSize: 15 }}>Log in</Link>
-          <Link href="/auth?mode=signup" className="btn-primary" style={{ padding: '10px 24px', fontSize: 14 }}>
-            <Zap size={15} /> Get Started
-          </Link>
-        </div>
+        {!isAuthPage && (
+          <div className="nav-cta" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <Link href="/auth" style={{ color: '#94a3b8', textDecoration: 'none', fontWeight: 500, fontSize: 15 }}>Log in</Link>
+            <Link href="/auth?mode=signup" className="btn-primary" style={{ padding: '10px 24px', fontSize: 14 }}>
+              <Zap size={15} /> Get Started
+            </Link>
+          </div>
+        )}
 
         {/* Mobile Menu Toggle */}
         <button
@@ -104,9 +109,11 @@ export default function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              <Link href="/auth?mode=signup" className="btn-primary" style={{ textAlign: 'center', justifyContent: 'center', marginTop: 8 }}>
-                Get Started Free
-              </Link>
+              {!isAuthPage && (
+                <Link href="/auth?mode=signup" className="btn-primary" style={{ textAlign: 'center', justifyContent: 'center', marginTop: 8 }}>
+                  Get Started Free
+                </Link>
+              )}
             </div>
           </motion.div>
         )}

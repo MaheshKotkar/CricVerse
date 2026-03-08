@@ -12,9 +12,9 @@ router.post('/', protect, authorize('organizer', 'admin'), upload.single('logo')
     try {
         req.body.organizer = req.user.id;
 
-        // If file uploaded, store the path
+        // If file uploaded, store the Cloudinary path
         if (req.file) {
-            req.body.logo = `/uploads/${req.file.filename}`;
+            req.body.logo = req.file.path;
         }
 
         // Handle players if sent as stringified JSON (common in FormData)

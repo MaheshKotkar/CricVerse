@@ -45,6 +45,19 @@ function MatchScoringContent() {
     const [wicketType, setWicketType] = useState('bowled');
     const [newBatsman, setNewBatsman] = useState('');
 
+    // Cancellation State
+    const [cancelModalVisible, setCancelModalVisible] = useState(false);
+    const [cancelReason, setCancelReason] = useState('');
+    const [actionLoading, setActionLoading] = useState(false);
+    const cancellationReasons = [
+        "Heavy rain",
+        "Poor visibility due to fog",
+        "Wet outfield that is unsafe for players",
+        "Poor lighting in stadiums without floodlights",
+        "Thunderstorms or lightning",
+        "Other (Custom Reason)"
+    ];
+
     const fetchMatch = async () => {
         try {
             const res = await api.get(`/matches/${matchId}`);
@@ -260,6 +273,26 @@ function MatchScoringContent() {
         }
     };
 
+    const handleCancelMatch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!cancelReason) return;
+
+        setActionLoading(true);
+        const loadingToast = toast.loading('Cancelling Match...');
+        try {
+            await api.patch(`/matches/${matchId}/cancel`, { reason: cancelReason });
+            setMatch({ ...match, status: 'Cancelled' });
+            toast.success('Match Cancelled!', { id: loadingToast });
+            setCancelModalVisible(false);
+            setCancelReason('');
+            router.push(`/dashboard/organizer/tournaments/${tournamentId}`);
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to cancel match', { id: loadingToast });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="pd-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -287,13 +320,22 @@ function MatchScoringContent() {
             <nav className="pd-navbar">
                 <div className="pd-navbar-inner">
                     <button onClick={() => router.push(`/dashboard/organizer/tournaments/${tournamentId}`)} className="pd-back-btn">
-                        <ArrowLeft size={16} /> Back to Tournament
+                        <ArrowLeft size={16} /> Back
                     </button>
                     <div className="pd-brand">
                         <Activity size={18} color="#ef4444" className={match.status === 'Live' ? "animate-pulse" : ""} />
                         <span className="pd-brand-text">Live Scoring</span>
                     </div>
-                    <div style={{ width: 100 }} /> {/* Spacer */}
+                    <div style={{ width: 100, display: 'flex', justifyContent: 'flex-end' }}>
+                        {(match.status === 'Scheduled' || match.status === 'Live') && (
+                            <button
+                                onClick={() => setCancelModalVisible(true)}
+                                style={{ background: 'transparent', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', padding: '6px 12px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                            >
+                                Cancel Match
+                            </button>
+                        )}
+                    </div>
                 </div>
             </nav>
 
@@ -302,16 +344,92 @@ function MatchScoringContent() {
                 <div className="score-header">
                     <div className="score-teams">
                         <div className="score-team">
-                            <div className="score-logo">{match.teamA?.logo ? <img src={match.teamA.logo} alt="" /> : '🛡️'}</div>
+                            <div className="score-logo">
+                                {match.teamA?.logo ? (
+                                    <img src={match.teamA.logo.startsWith('http') ? match.teamA.logo : `http://localhost:5000${match.teamA.logo.startsWith('/') ? '' : '/'}${match.teamA.logo}`} alt="" />
+                                ) : (
+                                    '🛡️'
+                                )}
+                            </div>
                             <div className="score-name">{match.teamA?.name}</div>
                         </div>
                         <div className="score-vs">VS</div>
                         <div className="score-team">
-                            <div className="score-logo">{match.teamB?.logo ? <img src={match.teamB.logo} alt="" /> : '🛡️'}</div>
+                            <div className="score-logo">
+                                {match.teamB?.logo ? (
+                                    <img src={match.teamB.logo.startsWith('http') ? match.teamB.logo : `http://localhost:5000${match.teamB.logo.startsWith('/') ? '' : '/'}${match.teamB.logo}`} alt="" />
+                                ) : (
+                                    '🛡️'
+                                )}
+                            </div>
                             <div className="score-name">{match.teamB?.name}</div>
                         </div>
                     </div>
                 </div>
+
+                {/* Cancel Match Modal */}
+                {cancelModalVisible && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0, 0, 0, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
+                    }}>
+                        <div style={{
+                            background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400,
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                        }}>
+                            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>Cancel Match</h3>
+                            <p style={{ margin: '0 0 16px 0', fontSize: 14, color: '#94a3b8' }}>Please select or provide a reason for cancelling this match.</p>
+
+                            <form onSubmit={handleCancelMatch} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                <select
+                                    value={cancellationReasons.includes(cancelReason) ? cancelReason : (cancelReason ? 'Other (Custom Reason)' : '')}
+                                    onChange={(e) => {
+                                        if (e.target.value !== 'Other (Custom Reason)') setCancelReason(e.target.value);
+                                        else setCancelReason('');
+                                    }}
+                                    className="toss-input"
+                                    style={{ colorScheme: 'dark' }}
+                                    required
+                                >
+                                    <option value="" disabled style={{ background: '#1e293b', color: '#94a3b8' }}>Select a reason...</option>
+                                    {cancellationReasons.map((reason, idx) => (
+                                        <option key={idx} value={reason} style={{ background: '#1e293b', color: '#f8fafc' }}>{reason}</option>
+                                    ))}
+                                </select>
+
+                                {(!cancellationReasons.includes(cancelReason) && cancelReason !== '' || cancelReason === '' && document.querySelector('select')?.value === 'Other (Custom Reason)') && (
+                                    <input
+                                        type="text"
+                                        placeholder="Enter custom reason..."
+                                        value={cancelReason}
+                                        onChange={(e) => setCancelReason(e.target.value)}
+                                        className="toss-input"
+                                        required
+                                        autoFocus
+                                    />
+                                )}
+
+                                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setCancelModalVisible(false); setCancelReason(''); }}
+                                        disabled={actionLoading}
+                                        style={{ padding: '10px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 600, opacity: actionLoading ? 0.6 : 1 }}
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={actionLoading || !cancelReason}
+                                        style={{ padding: '10px 16px', borderRadius: 8, background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800, opacity: (actionLoading || !cancelReason) ? 0.6 : 1 }}
+                                    >
+                                        {actionLoading ? <Loader2 size={16} className="animate-spin" /> : 'Confirm Cancel'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
 
                 {/* Step 1: Toss Configuration */}
                 {match.status === 'Scheduled' && (
