@@ -46,8 +46,11 @@ export default function MatchScorecard({ match }: MatchScorecardProps) {
         return team?.players?.some((p: any) => p.name === playerName);
     };
 
-    const renderInningScorecard = (batTeam: any, bowlTeam: any, inningNum: number, currentScore: any) => {
+    const renderInningScorecard = (batTeam: any, bowlTeam: any, inningNum: number, currentScore: any, isSuperOverStats: boolean = false) => {
         if (!currentScore || (inningNum === 2 && match.currentInning < 2 && match.status !== 'Completed')) return null;
+
+        // Use the appropriate stats object based on context
+        const statsToUse = isSuperOverStats ? (match.superOverPlayerStats || {}) : pStats;
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 40 }}>
@@ -81,7 +84,7 @@ export default function MatchScorecard({ match }: MatchScorecardProps) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {Object.entries(pStats)
+                                {Object.entries(statsToUse)
                                     .filter(([name, stats]: any) => isPlayerInTeam(name, batTeam) && (stats.batBalls > 0 || stats.batRuns > 0))
                                     .map(([name, stats]: any) => (
                                         <tr key={name} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s' }}>
@@ -125,7 +128,7 @@ export default function MatchScorecard({ match }: MatchScorecardProps) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {Object.entries(pStats)
+                                {Object.entries(statsToUse)
                                     .filter(([name, stats]: any) => isPlayerInTeam(name, bowlTeam) && stats.bowlBalls > 0)
                                     .map(([name, stats]: any) => (
                                         <tr key={name} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s' }}>
@@ -151,8 +154,8 @@ export default function MatchScorecard({ match }: MatchScorecardProps) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {renderInningScorecard(inn1BatTeam, inn1BowlTeam, 1, match.score?.inning1)}
-            {renderInningScorecard(inn2BatTeam, inn2BowlTeam, 2, match.score?.inning2)}
+            {renderInningScorecard(inn1BatTeam, inn1BowlTeam, 1, match.score?.inning1, false)}
+            {renderInningScorecard(inn2BatTeam, inn2BowlTeam, 2, match.score?.inning2, false)}
 
             {/* Super Over Section (Optional but good to have) */}
             {match.isSuperOver && (
@@ -163,9 +166,9 @@ export default function MatchScorecard({ match }: MatchScorecardProps) {
                         </div>
                         <div style={{ flex: 1, height: '1px', background: 'rgba(239,68,68,0.2)' }}></div>
                     </div>
-                    {/* Reuse current logic - for super over we usually just show the active stats or separate innings */}
-                    {renderInningScorecard(match.battingTeam, match.bowlingTeam, 1, match.superOver?.inning1)}
-                    {renderInningScorecard(match.bowlingTeam, match.battingTeam, 2, match.superOver?.inning2)}
+                    {/* Reuse current logic - for super over we show separate stats */}
+                    {renderInningScorecard(match.battingTeam, match.bowlingTeam, 1, match.superOver?.inning1, true)}
+                    {renderInningScorecard(match.bowlingTeam, match.battingTeam, 2, match.superOver?.inning2, true)}
                 </>
             )}
         </div>

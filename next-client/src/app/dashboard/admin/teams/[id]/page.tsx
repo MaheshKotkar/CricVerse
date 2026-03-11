@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, User, UserCheck, Shield, Crown, Star } from 'lucide
 import Link from 'next/link';
 import api from '../../../../../utils/api';
 import ProtectedRoute from '../../../../../components/ProtectedRoute';
+import { getImageUrl } from '../../../../../utils/imageUrl';
 
 function AdminTeamDetail() {
     const params = useParams();
@@ -77,7 +78,7 @@ function AdminTeamDetail() {
                 <div className="atd-header">
                     <div className="atd-logo-wrap">
                         {team.logo ? (
-                            <img src={`http://localhost:5000/${team.logo.replace(/^\//, '')}`} alt={team.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={getImageUrl(team.logo)} alt={team.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
                             <span style={{ fontSize: 40 }}>🛡️</span>
                         )}

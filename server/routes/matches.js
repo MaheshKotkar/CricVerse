@@ -70,7 +70,30 @@ router.get('/tournaments/:tournamentId/matches', async (req, res) => {
             .populate('result.winningTeam', 'name')
             .sort({ date: 1 }); // Ascending order by date
 
-        res.status(200).json({ success: true, count: matches.length, data: matches });
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const convertedMatches = matches.map(match => {
+            const matchObj = match.toObject();
+            
+            // Convert playerStats Map to object
+            if (match.playerStats && match.playerStats instanceof Map) {
+                matchObj.playerStats = {};
+                match.playerStats.forEach((value, key) => {
+                    matchObj.playerStats[key] = value;
+                });
+            }
+
+            // Convert superOverPlayerStats Map to object
+            if (match.superOverPlayerStats && match.superOverPlayerStats instanceof Map) {
+                matchObj.superOverPlayerStats = {};
+                match.superOverPlayerStats.forEach((value, key) => {
+                    matchObj.superOverPlayerStats[key] = value;
+                });
+            }
+
+            return matchObj;
+        });
+
+        res.status(200).json({ success: true, count: convertedMatches.length, data: convertedMatches });
     } catch (err) {
         console.error("Fetch Matches Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -90,7 +113,30 @@ router.get('/matches/upcoming', async (req, res) => {
             .sort({ status: -1, date: -1 }) // Live usually starts with L, Scheduled with S. 
             .limit(15);
 
-        res.status(200).json({ success: true, count: matches.length, data: matches });
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const convertedMatches = matches.map(match => {
+            const matchObj = match.toObject();
+            
+            // Convert playerStats Map to object
+            if (match.playerStats && match.playerStats instanceof Map) {
+                matchObj.playerStats = {};
+                match.playerStats.forEach((value, key) => {
+                    matchObj.playerStats[key] = value;
+                });
+            }
+
+            // Convert superOverPlayerStats Map to object
+            if (match.superOverPlayerStats && match.superOverPlayerStats instanceof Map) {
+                matchObj.superOverPlayerStats = {};
+                match.superOverPlayerStats.forEach((value, key) => {
+                    matchObj.superOverPlayerStats[key] = value;
+                });
+            }
+
+            return matchObj;
+        });
+
+        res.status(200).json({ success: true, count: convertedMatches.length, data: convertedMatches });
     } catch (err) {
         console.error("Fetch Upcoming Matches Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -116,7 +162,26 @@ router.get('/matches/:id', async (req, res) => {
 
         if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
 
-        res.status(200).json({ success: true, data: match });
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const matchObj = match.toObject();
+        
+        // Convert playerStats Map to object
+        if (match.playerStats && match.playerStats instanceof Map) {
+            matchObj.playerStats = {};
+            match.playerStats.forEach((value, key) => {
+                matchObj.playerStats[key] = value;
+            });
+        }
+
+        // Convert superOverPlayerStats Map to object
+        if (match.superOverPlayerStats && match.superOverPlayerStats instanceof Map) {
+            matchObj.superOverPlayerStats = {};
+            match.superOverPlayerStats.forEach((value, key) => {
+                matchObj.superOverPlayerStats[key] = value;
+            });
+        }
+
+        res.status(200).json({ success: true, data: matchObj });
     } catch (err) {
         console.error("Get Match Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -158,7 +223,26 @@ router.patch('/matches/:id/start', protect, authorize('organizer', 'admin'), asy
             .populate('battingTeam')
             .populate('bowlingTeam');
 
-        res.status(200).json({ success: true, data: populatedMatch });
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const matchObj = populatedMatch.toObject();
+        
+        // Convert playerStats Map to object
+        if (populatedMatch.playerStats && populatedMatch.playerStats instanceof Map) {
+            matchObj.playerStats = {};
+            populatedMatch.playerStats.forEach((value, key) => {
+                matchObj.playerStats[key] = value;
+            });
+        }
+
+        // Convert superOverPlayerStats Map to object
+        if (populatedMatch.superOverPlayerStats && populatedMatch.superOverPlayerStats instanceof Map) {
+            matchObj.superOverPlayerStats = {};
+            populatedMatch.superOverPlayerStats.forEach((value, key) => {
+                matchObj.superOverPlayerStats[key] = value;
+            });
+        }
+
+        res.status(200).json({ success: true, data: matchObj });
     } catch (err) {
         console.error("Start Match Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -187,7 +271,26 @@ router.patch('/matches/:id/players', protect, authorize('organizer', 'admin'), a
             .populate('battingTeam')
             .populate('bowlingTeam');
 
-        res.status(200).json({ success: true, data: populatedMatch });
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const matchObj = populatedMatch.toObject();
+        
+        // Convert playerStats Map to object
+        if (populatedMatch.playerStats && populatedMatch.playerStats instanceof Map) {
+            matchObj.playerStats = {};
+            populatedMatch.playerStats.forEach((value, key) => {
+                matchObj.playerStats[key] = value;
+            });
+        }
+
+        // Convert superOverPlayerStats Map to object
+        if (populatedMatch.superOverPlayerStats && populatedMatch.superOverPlayerStats instanceof Map) {
+            matchObj.superOverPlayerStats = {};
+            populatedMatch.superOverPlayerStats.forEach((value, key) => {
+                matchObj.superOverPlayerStats[key] = value;
+            });
+        }
+
+        res.status(200).json({ success: true, data: matchObj });
     } catch (err) {
         console.error("Update Players Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -239,10 +342,16 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
         if (!match.playerStats) {
             match.playerStats = new Map();
         }
+        if (!match.superOverPlayerStats) {
+            match.superOverPlayerStats = new Map();
+        }
+
+        // Select the correct stats object based on whether it's a super over
+        const statsObject = match.isSuperOver ? match.superOverPlayerStats : match.playerStats;
 
         const ensureStats = (pName) => {
-            if (pName && !match.playerStats.has(pName)) {
-                match.playerStats.set(pName, {
+            if (pName && !statsObject.has(pName)) {
+                statsObject.set(pName, {
                     batRuns: 0, batBalls: 0, batFours: 0, batSixes: 0,
                     isOut: false, dismissalType: null,
                     bowlRuns: 0, bowlBalls: 0, bowlWickets: 0, bowlMaidens: 0
@@ -258,8 +367,8 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
         ensureStats(oldNonStriker);
         ensureStats(oldBowler);
 
-        const sStats = match.playerStats.get(oldStriker);
-        const bStats = match.playerStats.get(oldBowler);
+        const sStats = statsObject.get(oldStriker);
+        const bStats = statsObject.get(oldBowler);
 
         // Batting stats
         if (extraType !== 'wd' && extraType !== 'nb') {
@@ -288,17 +397,24 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
             }
             if (playerDismissed) {
                 ensureStats(playerDismissed);
-                const victimStats = match.playerStats.get(playerDismissed);
+                const victimStats = statsObject.get(playerDismissed);
                 if (victimStats) {
                     victimStats.isOut = true;
                     victimStats.dismissalType = wicketType || 'out';
-                    match.playerStats.set(playerDismissed, victimStats);
+                    statsObject.set(playerDismissed, victimStats);
                 }
             }
         }
 
-        match.playerStats.set(oldStriker, sStats);
-        match.playerStats.set(oldBowler, bStats);
+        statsObject.set(oldStriker, sStats);
+        statsObject.set(oldBowler, bStats);
+
+        // Mark the appropriate object as modified in Mongoose
+        if (match.isSuperOver) {
+            match.markModified('superOverPlayerStats');
+        } else {
+            match.markModified('playerStats');
+        }
 
         // Update active players if provided
         if (striker) match.activePlayers.striker = striker;
@@ -366,6 +482,25 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
             .populate('battingTeam')
             .populate('bowlingTeam');
 
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const matchObj = populatedMatch.toObject();
+        
+        // Convert playerStats Map to object
+        if (populatedMatch.playerStats && populatedMatch.playerStats instanceof Map) {
+            matchObj.playerStats = {};
+            populatedMatch.playerStats.forEach((value, key) => {
+                matchObj.playerStats[key] = value;
+            });
+        }
+
+        // Convert superOverPlayerStats Map to object
+        if (populatedMatch.superOverPlayerStats && populatedMatch.superOverPlayerStats instanceof Map) {
+            matchObj.superOverPlayerStats = {};
+            populatedMatch.superOverPlayerStats.forEach((value, key) => {
+                matchObj.superOverPlayerStats[key] = value;
+            });
+        }
+
         const newBall = await Ball.create({
             match: matchId,
             inning: match.currentInning,
@@ -383,7 +518,7 @@ router.post('/matches/:id/score', protect, authorize('organizer', 'admin'), asyn
             playerDismissed
         });
 
-        res.status(201).json({ success: true, data: { match: populatedMatch, ball: newBall } });
+        res.status(201).json({ success: true, data: { match: matchObj, ball: newBall } });
     } catch (err) {
         console.error("Score Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -424,7 +559,26 @@ router.patch('/matches/:id/switch-inning', protect, authorize('organizer', 'admi
             .populate('battingTeam')
             .populate('bowlingTeam');
 
-        res.status(200).json({ success: true, data: populatedMatch });
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const matchObj = populatedMatch.toObject();
+        
+        // Convert playerStats Map to object
+        if (populatedMatch.playerStats && populatedMatch.playerStats instanceof Map) {
+            matchObj.playerStats = {};
+            populatedMatch.playerStats.forEach((value, key) => {
+                matchObj.playerStats[key] = value;
+            });
+        }
+
+        // Convert superOverPlayerStats Map to object
+        if (populatedMatch.superOverPlayerStats && populatedMatch.superOverPlayerStats instanceof Map) {
+            matchObj.superOverPlayerStats = {};
+            populatedMatch.superOverPlayerStats.forEach((value, key) => {
+                matchObj.superOverPlayerStats[key] = value;
+            });
+        }
+
+        res.status(200).json({ success: true, data: matchObj });
     } catch (err) {
         console.error("Switch Inning Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -465,7 +619,26 @@ router.patch('/matches/:id/start-super-over', protect, authorize('organizer', 'a
             .populate('battingTeam')
             .populate('bowlingTeam');
 
-        res.status(200).json({ success: true, data: populatedMatch });
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const matchObj = populatedMatch.toObject();
+        
+        // Convert playerStats Map to object
+        if (populatedMatch.playerStats && populatedMatch.playerStats instanceof Map) {
+            matchObj.playerStats = {};
+            populatedMatch.playerStats.forEach((value, key) => {
+                matchObj.playerStats[key] = value;
+            });
+        }
+
+        // Convert superOverPlayerStats Map to object
+        if (populatedMatch.superOverPlayerStats && populatedMatch.superOverPlayerStats instanceof Map) {
+            matchObj.superOverPlayerStats = {};
+            populatedMatch.superOverPlayerStats.forEach((value, key) => {
+                matchObj.superOverPlayerStats[key] = value;
+            });
+        }
+
+        res.status(200).json({ success: true, data: matchObj });
     } catch (err) {
         console.error("Start Super Over Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -486,7 +659,26 @@ router.patch('/matches/:id/cancel', protect, authorize('organizer', 'admin'), as
         match.cancelReason = reason || 'No specific reason provided';
         await match.save();
 
-        res.status(200).json({ success: true, data: match });
+        // Convert Mongoose Map objects to plain objects for JSON serialization
+        const matchObj = match.toObject();
+        
+        // Convert playerStats Map to object
+        if (match.playerStats && match.playerStats instanceof Map) {
+            matchObj.playerStats = {};
+            match.playerStats.forEach((value, key) => {
+                matchObj.playerStats[key] = value;
+            });
+        }
+
+        // Convert superOverPlayerStats Map to object
+        if (match.superOverPlayerStats && match.superOverPlayerStats instanceof Map) {
+            matchObj.superOverPlayerStats = {};
+            match.superOverPlayerStats.forEach((value, key) => {
+                matchObj.superOverPlayerStats[key] = value;
+            });
+        }
+
+        res.status(200).json({ success: true, data: matchObj });
     } catch (err) {
         console.error("Cancel Match Error:", err);
         res.status(500).json({ success: false, message: 'Server Error' });

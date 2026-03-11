@@ -1,11 +1,13 @@
 "use client";
 import { useState, useEffect, use } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Users, Calendar, MapPin, Play, ArrowLeft, Loader2, CheckCircle2, Activity } from 'lucide-react';
+import { Trophy, Users, Calendar, MapPin, Play, ArrowLeft, Loader2, CheckCircle2, Activity, Info } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import api from '../../../../../utils/api';
 import ProtectedRoute from '../../../../../components/ProtectedRoute';
+import PointsTable from '../../../../../components/PointsTable';
+import { getImageUrl } from '../../../../../utils/imageUrl';
 
 function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
@@ -35,78 +37,40 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
         "Other (Custom Reason)"
     ];
 
-    const inputStyle: React.CSSProperties = {
-        width: '100%',
-        padding: '12px',
-        borderRadius: '10px',
-        background: 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        color: '#f8fafc',
-        outline: 'none',
-        fontSize: '14px',
-        boxSizing: 'border-box'
-    };
-
     useEffect(() => {
-        if (!id) return; // wait until the param is resolved
+        if (!id) return;
         const fetchData = async () => {
             try {
-                // Fetch tournament details
-                const tRes = await api.get(`/tournaments/${id}`);
+                const [tRes, teamRes, mRes] = await Promise.all([
+                    api.get(`/tournaments/${id}`),
+                    api.get('/teams'),
+                    api.get(`/tournaments/${id}/matches`)
+                ]);
                 setData(tRes.data.data);
-            } catch (err: any) {
-                console.error(`❌ GET /tournaments/${id} failed:`, err?.response?.status, err?.response?.data);
-            }
-
-            try {
-                // Fetch available teams (independent — don't let this block the tournament view)
-                const teamRes = await api.get('/teams');
                 setAvailableTeams(teamRes.data.data);
-            } catch (err: any) {
-                console.error('❌ GET /teams failed:', err?.response?.status, err?.response?.data);
-            }
-
-            try {
-                // Fetch Matches
-                const mRes = await api.get(`/tournaments/${id}/matches`);
                 setMatches(mRes.data.data);
             } catch (err: any) {
-                console.error('❌ GET /matches failed:', err?.response?.status, err?.response?.data);
+                console.error("Failed to fetch tournament details", err);
+                toast.error("Failed to load tournament data");
+            } finally {
+                setLoading(false);
             }
-
-            setLoading(false);
         };
         fetchData();
+        const interval = setInterval(fetchData, 15000);
+        return () => clearInterval(interval);
     }, [id]);
 
     const handleStartTournament = () => {
         toast.custom((t) => (
-            <div
-                style={{
-                    background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16,
-                    padding: 24, display: 'flex', flexDirection: 'column', gap: 16, width: 340, maxWidth: '100%',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4)'
-                }}
-            >
-                <div>
-                    <h3 style={{ margin: '0 0 8px 0', fontSize: 17, fontWeight: 800, color: '#f8fafc' }}>Start Tournament?</h3>
-                    <p style={{ margin: 0, fontSize: 14, color: '#94a3b8', lineHeight: 1.5 }}>
-                        Are you sure you want to start <b>{data.name}</b>? Once started, you cannot remove teams.
-                    </p>
-                </div>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-                    <button
-                        onClick={() => toast.dismiss(t.id)}
-                        style={{ padding: '8px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 600 }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => { toast.dismiss(t.id); confirmStartTournament(); }}
-                        style={{ padding: '8px 16px', borderRadius: 8, background: '#22c55e', color: '#000', border: 'none', cursor: 'pointer', fontWeight: 800 }}
-                    >
-                        Yes, Start
-                    </button>
+            <div className="glass-panel" style={{ width: 340, padding: 24, background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 18, fontWeight: 900 }}>Start Tournament?</h3>
+                <p style={{ margin: '0 0 20px 0', fontSize: 14, color: '#94a3b8', lineHeight: 1.5 }}>
+                    Are you sure you want to start <b>{data.name}</b>? Teams cannot be removed once started.
+                </p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                    <button onClick={() => toast.dismiss(t.id)} className="status-badge" style={{ cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={() => { toast.dismiss(t.id); confirmStartTournament(); }} className="tdetail-start-btn" style={{ padding: '8px 16px', borderRadius: 10 }}>Start</button>
                 </div>
             </div>
         ), { duration: Infinity });
@@ -135,6 +99,7 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
             setData(tRes.data.data);
             setShowAddTeam(false);
             setSelectedTeam('');
+            toast.success('Team added successfully!');
         } catch {
             toast.error('Failed to add team');
         } finally {
@@ -145,7 +110,7 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
     const handleCreateMatch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newMatch.teamA === newMatch.teamB) {
-            return toast.error("A team cannot play against itself");
+            return toast.error("Teams cannot play against themselves");
         }
         setActionLoading(true);
         const loadingToast = toast.loading('Scheduling Match...');
@@ -165,12 +130,10 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
     const handleCancelMatch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!cancelingMatchId || !cancelReason) return;
-
         setActionLoading(true);
         const loadingToast = toast.loading('Cancelling Match...');
         try {
             await api.patch(`/matches/${cancelingMatchId}/cancel`, { reason: cancelReason });
-            // Update the local matches state
             setMatches(prev => prev.map(m => m._id === cancelingMatchId ? { ...m, status: 'Cancelled' } : m));
             toast.success('Match Cancelled!', { id: loadingToast });
             setCancelModalVisible(false);
@@ -183,368 +146,431 @@ function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
         }
     };
 
+    const getTeamColor = (name: string) => {
+        if (!name) return '#f8fafc';
+        const colors = ['#60a5fa', '#f87171', '#fbbf24', '#34d399', '#a78bfa', '#f472b6', '#fb923c', '#2dd4bf'];
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return colors[Math.abs(hash) % colors.length];
+    };
+
     if (loading) return (
-        <div style={{ minHeight: '100vh', background: '#0a0e1a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: '100vh', background: '#080c18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Loader2 className="animate-spin" color="#3b82f6" size={40} />
         </div>
     );
 
     if (!data) return (
-        <div style={{ minHeight: '100vh', background: '#0a0e1a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f8fafc' }}>
+        <div style={{ minHeight: '100vh', background: '#080c18', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f8fafc' }}>
             Tournament not found
         </div>
     );
 
     return (
-        <div style={{ minHeight: '100vh', background: '#0a0e1a', color: '#f8fafc' }}>
-            <div className="tdetail-container">
-                <Link href="/dashboard/organizer" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#94a3b8', textDecoration: 'none', marginBottom: 28, fontSize: 14, fontWeight: 600 }}>
-                    <ArrowLeft size={16} /> Back to Dashboard
-                </Link>
+        <div className="premium-bg">
+            <style>{`
+                .premium-bg { min-height: 100vh; background: radial-gradient(circle at top left, #0f172a, #080c18); color: #f8fafc; padding-bottom: 80px; }
+                .td-container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+                
+                .back-btn { 
+                    display: inline-flex; align-items: center; gap: 10px; color: #94a3b8; text-decoration: none; 
+                    margin-bottom: 32px; font-size: 14px; font-weight: 700; transition: color 0.2s;
+                }
+                .back-btn:hover { color: #3b82f6; }
 
-                {/* Header */}
-                <div className="tdetail-header">
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-                            <span style={{
-                                fontSize: 11, fontWeight: 800, padding: '4px 12px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
-                                background: data.status === 'Active' ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.15)',
-                                color: data.status === 'Active' ? '#22c55e' : '#94a3b8',
-                                border: `1px solid ${data.status === 'Active' ? 'rgba(34,197,94,0.3)' : 'rgba(148,163,184,0.3)'}`
-                            }}>● {data.status}</span>
-                            <span style={{ color: '#475569', fontSize: 13, fontWeight: 600 }}>Format: {data.format}</span>
+                /* Header Card */
+                .t-header-card {
+                    background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 32px; padding: 40px; margin-bottom: 40px;
+                    display: flex; justify-content: space-between; align-items: flex-end;
+                    backdrop-filter: blur(20px); box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+                }
+                .t-header-main { flex: 1; }
+                .t-badges { display: flex; gap: 12px; margin-bottom: 20px; }
+                .status-badge {
+                    display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 900;
+                    padding: 6px 16px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.05em;
+                    background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+                }
+                .status-badge.active { color: #22c55e; border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.1); }
+                .status-badge.live { color: #ef4444; border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); }
+                .status-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+                .format-badge {
+                    font-size: 11px; font-weight: 900; padding: 6px 16px; border-radius: 100px;
+                    background: rgba(255, 255, 255, 0.05); color: #94a3b8; text-transform: uppercase;
+                }
+                .t-title { font-size: clamp(2rem, 6vw, 3.5rem); font-weight: 900; line-height: 1.1; margin: 0 0 20px 0; letter-spacing: -0.02em; }
+                .t-meta { display: flex; flex-wrap: wrap; gap: 24px; }
+                .meta-item { display: flex; align-items: center; gap: 8px; color: #94a3b8; font-weight: 600; font-size: 15px; }
+                .icon-blue { color: #3b82f6; }
+
+                .t-actions-box { padding: 20px; background: rgba(0,0,0,0.2); border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; gap: 12px; }
+                .tdetail-start-btn {
+                    background: linear-gradient(135deg, #22c55e, #16a34a); color: #000; border: none;
+                    border-radius: 14px; padding: 14px 24px; font-weight: 800; cursor: pointer;
+                    display: flex; align-items: center; gap: 10px; font-size: 15px;
+                    box-shadow: 0 8px 24px rgba(34,197,94,0.3); transition: all 0.2s;
+                }
+                .tdetail-start-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(34,197,94,0.4); }
+
+                /* Grid System */
+                .org-main-grid { display: grid; grid-template-columns: 1fr 360px; gap: 40px; align-items: start; }
+                .dashboard-section { margin-bottom: 48px; }
+                .section-header { margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; }
+                .header-title { display: flex; align-items: center; gap: 16px; }
+                .header-title h2 { font-size: 24px; font-weight: 900; margin: 0; }
+                .icon-bg { 
+                    width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+                }
+                .icon-bg.blue { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
+                .icon-bg.yellow { background: linear-gradient(135deg, #facc15, #eab308); color: #000; }
+                
+                .glass-panel { 
+                    background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.06);
+                    border-radius: 32px; backdrop-filter: blur(10px); padding: 32px;
+                }
+                .glass-panel.no-padding { padding: 0; }
+
+                /* Modals/Form styling */
+                .premium-form-box { background: rgba(15, 22, 41, 0.8); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 24px; padding: 24px; margin-bottom: 24px; }
+                .premium-input { width: 100%; padding: 14px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+                .premium-input:focus { border-color: #3b82f6; }
+                
+                .add-btn { background: #3b82f6; color: #fff; border: none; border-radius: 12px; padding: 12px 24px; font-weight: 800; cursor: pointer; transition: all 0.2s; }
+                .add-btn:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
+
+                /* Responsiveness */
+                @media (max-width: 1024px) { .org-main-grid { grid-template-columns: 1fr; } }
+                @media (max-width: 768px) {
+                    .t-header-card { flex-direction: column; align-items: flex-start; gap: 32px; padding: 28px; }
+                    .t-actions-box { width: 100%; }
+                    .header-title h2 { font-size: 20px; }
+                    .td-container { padding: 32px 20px; }
+                }
+                @media (max-width: 480px) {
+                    .td-container { padding: 20px 16px; }
+                    .t-title { font-size: 2.2rem; }
+                }
+            `}</style>
+
+            <div className="td-container">
+                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+                    <Link href="/dashboard/organizer" className="back-btn">
+                        <ArrowLeft size={16} /> <span>Back to Dashboard</span>
+                    </Link>
+                </motion.div>
+
+                {/* Tournament Header */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="t-header-card">
+                    <div className="t-header-main">
+                        <div className="t-badges">
+                            <span className={`status-badge ${data.status.toLowerCase() === 'active' ? 'active' : ''}`}>
+                                <span className="dot"></span> {data.status}
+                            </span>
+                            <span className="format-badge">{data.format}</span>
                         </div>
-                        <h1 style={{ fontSize: 'clamp(1.4rem, 5vw, 2.2rem)', fontWeight: 900, marginBottom: 10 }}>{data.name}</h1>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 13 }}>
-                                <Calendar size={15} /> {new Date(data.startDate).toLocaleDateString()}
+                        <h1 className="t-title">{data.name}</h1>
+                        <div className="t-meta">
+                            <div className="meta-item">
+                                <Calendar size={18} className="icon-blue" />
+                                <span>{new Date(data.startDate).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 13 }}>
-                                <MapPin size={15} /> {data.venue || 'No venue set'}
+                            <div className="meta-item">
+                                <MapPin size={18} className="icon-blue" />
+                                <span>{data.venue || 'Multiple Venues'}</span>
                             </div>
                         </div>
                     </div>
 
                     {data.status === 'Draft' && (
-                        <button
-                            onClick={handleStartTournament}
-                            disabled={actionLoading || data.teams.length < 2}
-                            className="tdetail-start-btn"
-                            style={{ opacity: (actionLoading || data.teams.length < 2) ? 0.6 : 1 }}
-                        >
-                            {actionLoading ? <Loader2 className="animate-spin" size={20} /> : <><Play size={18} fill="currentColor" /> Start Tournament</>}
-                        </button>
+                        <div className="t-actions-box">
+                            <button
+                                onClick={handleStartTournament}
+                                disabled={actionLoading || data.teams.length < 2}
+                                className="tdetail-start-btn"
+                                style={{ opacity: (actionLoading || data.teams.length < 2) ? 0.6 : 1 }}
+                            >
+                                {actionLoading ? <Loader2 className="animate-spin" size={20} /> : <><Play size={18} fill="currentColor" /> Start Tournament</>}
+                            </button>
+                            {data.teams.length < 2 && <p style={{ fontSize: 11, color: '#ef4444', margin: 0, textAlign: 'center', fontWeight: 700 }}>Add at least 2 teams to start</p>}
+                        </div>
                     )}
-                </div>
-
-                {/* Cancel Match Modal */}
-                {cancelModalVisible && (
-                    <div style={{
-                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                        background: 'rgba(0, 0, 0, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20
-                    }}>
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{
-                            background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400,
-                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-                        }}>
-                            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>Cancel Match</h3>
-                            <p style={{ margin: '0 0 16px 0', fontSize: 14, color: '#94a3b8' }}>Please select or provide a reason for cancelling this match.</p>
-
-                            <form onSubmit={handleCancelMatch} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                                <select
-                                    value={cancellationReasons.includes(cancelReason) ? cancelReason : (cancelReason ? 'Other (Custom Reason)' : '')}
-                                    onChange={(e) => {
-                                        if (e.target.value !== 'Other (Custom Reason)') setCancelReason(e.target.value);
-                                        else setCancelReason(''); // Clear it so they can type
-                                    }}
-                                    style={{ ...inputStyle, colorScheme: 'dark' }}
-                                    required
-                                >
-                                    <option value="" disabled style={{ background: '#1e293b', color: '#94a3b8' }}>Select a reason...</option>
-                                    {cancellationReasons.map((reason, idx) => (
-                                        <option key={idx} value={reason} style={{ background: '#1e293b', color: '#f8fafc' }}>{reason}</option>
-                                    ))}
-                                </select>
-
-                                {(!cancellationReasons.includes(cancelReason) && cancelReason !== '' || cancelReason === '' && document.querySelector('select')?.value === 'Other (Custom Reason)') && (
-                                    <input
-                                        type="text"
-                                        placeholder="Enter custom reason..."
-                                        value={cancelReason}
-                                        onChange={(e) => setCancelReason(e.target.value)}
-                                        style={inputStyle}
-                                        required
-                                        autoFocus
-                                    />
-                                )}
-
-                                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setCancelModalVisible(false); setCancelingMatchId(null); setCancelReason(''); }}
-                                        disabled={actionLoading}
-                                        style={{ padding: '10px 16px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 600, opacity: actionLoading ? 0.6 : 1 }}
-                                    >
-                                        Back
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={actionLoading || !cancelReason}
-                                        style={{ padding: '10px 16px', borderRadius: 8, background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800, opacity: (actionLoading || !cancelReason) ? 0.6 : 1 }}
-                                    >
-                                        {actionLoading ? 'Cancelling...' : 'Confirm Cancel'}
-                                    </button>
-                                </div>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
+                </motion.div>
 
                 {/* Body Grid */}
-                <div className="tdetail-grid">
-                    {/* Teams Section */}
-                    <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-                            <h2 style={{ fontSize: 17, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
-                                <Users size={20} color="#3b82f6" /> Teams ({data.teams.length})
-                            </h2>
-                            <button onClick={() => setShowAddTeam(!showAddTeam)} style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: '#3b82f6', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                                {showAddTeam ? 'Cancel' : '+ Add Team'}
-                            </button>
-                        </div>
-
-                        {showAddTeam && (
-                            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{ background: 'rgba(15,22,41,0.8)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '18px', marginBottom: 18 }}>
-                                <label style={{ display: 'block', fontSize: 13, color: '#94a3b8', marginBottom: 10 }}>Select a team to add:</label>
-                                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                                    <select
-                                        value={selectedTeam}
-                                        onChange={(e) => setSelectedTeam(e.target.value)}
-                                        style={{ flex: 1, minWidth: 160, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#f8fafc', padding: '10px', outline: 'none' }}
-                                    >
-                                        <option value="">Choose a team...</option>
-                                        {availableTeams.filter(team => !data.teams.find((t: any) => (t._id || t) === team._id)).map(team => (
-                                            <option key={team._id} value={team._id}>{team.name}</option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        onClick={handleAddTeam}
-                                        disabled={!selectedTeam || actionLoading}
-                                        style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 700, cursor: 'pointer', opacity: (!selectedTeam || actionLoading) ? 0.6 : 1 }}
-                                    >
-                                        Add
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {data.teams.length > 0 ? data.teams.map((team: any, index: number) => (
-                                <div key={team._id ? `${team._id}-${index}` : index} style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'rgba(15,22,41,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '14px' }}>
-                                    <div style={{ width: 42, height: 42, borderRadius: 10, background: 'linear-gradient(135deg, #1e293b, #0f172a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0, overflow: 'hidden' }}>
-                                        {team.logo ? (
-                                            <img src={team.logo.startsWith('http') ? team.logo : `http://localhost:5000${team.logo.startsWith('/') ? '' : '/'}${team.logo}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        ) : (
-                                            '🛡️'
-                                        )}
+                <div className="org-main-grid">
+                    <div className="org-left-col">
+                        {/* Participating Teams */}
+                        <section className="dashboard-section">
+                            <div className="section-header">
+                                <div className="header-title">
+                                    <div className="icon-bg blue">
+                                        <Users size={20} />
                                     </div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{team.name}</div>
-                                        <div style={{ fontSize: 12, color: '#64748b' }}>{team.players?.length || 0} Players</div>
-                                    </div>
-                                    <CheckCircle2 size={18} color="#22c55e" style={{ flexShrink: 0 }} />
+                                    <h2>Participating Teams</h2>
+                                    <span style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', padding: '4px 12px', borderRadius: 100, fontSize: 12, fontWeight: 900 }}>{data.teams.length}</span>
                                 </div>
-                            )) : (
-                                <div style={{ textAlign: 'center', padding: '32px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 14, border: '1px dashed rgba(255,255,255,0.08)' }}>
-                                    <p style={{ color: '#475569', fontSize: 14, margin: 0 }}>Minimum 2 teams required to start.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Info Section */}
-                    <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                        <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 18 }}>Tournament Details</h2>
-                        <div style={{ background: 'rgba(15,22,41,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, padding: '22px' }}>
-                            <h4 style={{ fontSize: 12, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Description</h4>
-                            <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, marginBottom: 22 }}>
-                                {data.description || 'No description provided for this tournament.'}
-                            </p>
-                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 20 }}>
-                                <h4 style={{ fontSize: 12, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>At a glance</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                                        <span style={{ color: '#64748b' }}>Created On</span>
-                                        <span style={{ fontWeight: 600 }}>{new Date(data.createdAt).toLocaleDateString()}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                                        <span style={{ color: '#64748b' }}>Winner</span>
-                                        <span style={{ color: '#facc15', fontWeight: 700 }}>TBD 🏆</span>
-                                    </div>
-                                </div>
+                                <button onClick={() => setShowAddTeam(!showAddTeam)} className="add-btn" style={{ fontSize: 12, padding: '8px 16px' }}>
+                                    {showAddTeam ? 'Cancel' : '+ Add Team'}
+                                </button>
                             </div>
-                        </div>
 
-                        {/* Match Scheduling Form inside Info Section */}
-                        {data.status === 'Active' && showCreateMatch && (
-                            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{ marginBottom: 20, background: 'rgba(15,22,41,0.8)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 16, padding: '20px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#3b82f6' }}>Schedule New Match</h3>
-                                    <button onClick={() => setShowCreateMatch(false)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Cancel</button>
-                                </div>
-                                <form onSubmit={handleCreateMatch} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            {showAddTeam && (
+                                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="premium-form-box">
+                                    <label style={{ display: 'block', fontSize: 13, color: '#94a3b8', marginBottom: 12, fontWeight: 700 }}>Select a team to add:</label>
                                     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                                        <select required value={newMatch.teamA} onChange={e => setNewMatch({ ...newMatch, teamA: e.target.value })} style={{ ...inputStyle, flex: 1, minWidth: '130px' }}>
-                                            <option value="">Select Team A...</option>
-                                            {data.teams.map((t: any) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                                        <select
+                                            value={selectedTeam}
+                                            onChange={(e) => setSelectedTeam(e.target.value)}
+                                            className="premium-input"
+                                            style={{ flex: 1, minWidth: 200 }}
+                                        >
+                                            <option value="">Choose a team...</option>
+                                            {availableTeams.filter(team => !data.teams.find((t: any) => (t._id || t) === team._id)).map(team => (
+                                                <option key={team._id} value={team._id}>{team.name}</option>
+                                            ))}
                                         </select>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#475569', fontSize: 12, width: 24, flexShrink: 0 }}>VS</div>
-                                        <select required value={newMatch.teamB} onChange={e => setNewMatch({ ...newMatch, teamB: e.target.value })} style={{ ...inputStyle, flex: 1, minWidth: '130px' }}>
-                                            <option value="">Select Team B...</option>
-                                            {data.teams.map((t: any) => <option key={t._id} value={t._id}>{t.name}</option>)}
-                                        </select>
+                                        <button onClick={handleAddTeam} disabled={!selectedTeam || actionLoading} className="add-btn">
+                                            {actionLoading ? <Loader2 className="animate-spin" size={18} /> : 'Add Team'}
+                                        </button>
                                     </div>
-                                    <input type="datetime-local" required value={newMatch.date} onChange={e => setNewMatch({ ...newMatch, date: e.target.value })} style={inputStyle} />
-                                    <input type="text" placeholder="Venue (Optional)" value={newMatch.venue} onChange={e => setNewMatch({ ...newMatch, venue: e.target.value })} style={inputStyle} />
-                                    <button type="submit" disabled={actionLoading} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 10, padding: '12px', fontWeight: 800, cursor: 'pointer', opacity: actionLoading ? 0.6 : 1 }}>
-                                        {actionLoading ? 'Scheduling...' : 'Save Match'}
-                                    </button>
-                                </form>
-                            </motion.div>
-                        )}
+                                </motion.div>
+                            )}
 
-                        {data.status === 'Active' && !showCreateMatch && (
-                            <div style={{ marginTop: 20, background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: 18, padding: '20px', textAlign: 'center' }}>
-                                <p style={{ color: '#22c55e', fontSize: 14, fontWeight: 700, marginBottom: 12 }}>🚀 Tournament is Live!</p>
-                                <button onClick={() => setShowCreateMatch(true)} style={{ width: '100%', padding: '12px', borderRadius: 12, background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e', fontSize: 14, fontWeight: 800, cursor: 'pointer', marginBottom: 12 }}>
-                                    + Schedule Match
-                                </button>
-                                <button style={{ width: '100%', padding: '12px', borderRadius: 12, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: '#3b82f6', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
-                                    Go to Live Scoring 📈
-                                </button>
+                            <div className="glass-panel no-padding overflow-hidden">
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 1, background: 'rgba(255,255,255,0.05)' }}>
+                                    {data.teams.length > 0 ? data.teams.map((team: any, index: number) => (
+                                        <div key={team._id || index} style={{ display: 'flex', alignItems: 'center', gap: 16, background: '#0f172a', padding: '24px' }}>
+                                            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                                {team.logo ? <img src={getImageUrl(team.logo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Info size={20} color="#475569" />}
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: 15, fontWeight: 800, color: getTeamColor(team.name) }}>{team.name}</div>
+                                                <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>{team.players?.length || 0} Players</div>
+                                            </div>
+                                            <CheckCircle2 size={18} color="#22c55e" />
+                                        </div>
+                                    )) : (
+                                        <div style={{ padding: 60, textAlign: 'center', background: '#0f172a', gridColumn: '1 / -1' }}>
+                                            <Info size={32} color="#334155" style={{ margin: '0 auto 16px' }} />
+                                            <p style={{ color: '#475569', fontSize: 14, fontWeight: 700 }}>Tournament requires at least 2 teams.</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+                        </section>
+
+                        {/* Points Table Section */}
+                        {data.status === 'Active' && (
+                            <section className="dashboard-section">
+                                <div className="section-header">
+                                    <div className="header-title">
+                                        <div className="icon-bg yellow">
+                                            <Trophy size={18} />
+                                        </div>
+                                        <h2>Points Table</h2>
+                                    </div>
+                                </div>
+                                <div className="glass-panel no-padding overflow-hidden">
+                                    <div style={{ padding: '8px 20px 24px' }}>
+                                        <PointsTable tournamentId={id} />
+                                    </div>
+                                </div>
+                            </section>
                         )}
 
                         {/* Matches List */}
-                        {data.status === 'Active' && matches.length > 0 && (
-                            <div style={{ marginTop: 24 }}>
-                                <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 14, color: '#f8fafc', paddingLeft: 4 }}>Scheduled Matches</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                    {matches.map((m: any) => (
-                                        <div key={m._id} style={{ background: 'rgba(15,22,41,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: 16 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', flexWrap: 'wrap', gap: 10 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
-                                                        <Calendar size={13} /> {new Date(m.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                                                    </div>
-                                                    <span style={{ background: m.status === 'Live' ? '#ef4444' : m.status === 'Cancelled' ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.05)', color: m.status === 'Live' ? '#fff' : m.status === 'Cancelled' ? '#ef4444' : '#94a3b8', padding: '4px 10px', borderRadius: 6, fontSize: 10 }}>● {m.status}</span>
-                                                </div>
-
-                                                <div style={{ display: 'flex', gap: 8 }}>
-                                                    {(m.status === 'Scheduled' || m.status === 'Live') && (
-                                                        <button
-                                                            onClick={() => { setCancelingMatchId(m._id); setCancelModalVisible(true); }}
-                                                            disabled={actionLoading}
-                                                            style={{ background: 'transparent', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', padding: '6px 12px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
-                                                            Cancel
-                                                        </button>
-                                                    )}
-                                                    {(m.status === 'Scheduled' || m.status === 'Live') && (
-                                                        <Link href={`/dashboard/organizer/tournaments/${data._id}/matches/${m._id}/score`} style={{ textDecoration: 'none' }}>
-                                                            <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)' }}>
-                                                                <Play size={14} fill="currentColor" /> {m.status === 'Live' ? 'Score Live' : 'Start Match'}
-                                                            </button>
-                                                        </Link>
-                                                    )}
-                                                    {m.status === 'Completed' && (
-                                                        <Link href={`/dashboard/organizer/matches/${m._id}`} style={{ textDecoration: 'none' }}>
-                                                            <button style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', padding: '6px 14px', borderRadius: '8px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
-                                                                <Activity size={14} /> View Scorecard
-                                                            </button>
-                                                        </Link>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                                                <div style={{ flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#f8fafc', wordBreak: 'break-word' }}>
-                                                    {m.teamA?.name || 'Team A'}
-                                                    {m.status === 'Completed' && (
-                                                        <div style={{ marginTop: 6 }}>
-                                                            {m.isSuperOver && (
-                                                                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
-                                                                    Reg: {m.score?.inning1?.runs}/{m.score?.inning1?.wickets} ({m.score?.inning1?.overs})
-                                                                </div>
-                                                            )}
-                                                            <div style={{ fontSize: 16, fontWeight: 900, color: m.result?.winningTeam?._id === m.teamA?._id ? '#22c55e' : '#475569' }}>
-                                                                {m.isSuperOver
-                                                                    ? `${m.superOver?.inning1?.runs}/${m.superOver?.inning1?.wickets} (SO)`
-                                                                    : `${m.score?.inning1?.runs}/${m.score?.inning1?.wickets} (${m.score?.inning1?.overs})`
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div style={{ fontSize: 10, fontWeight: 900, color: '#64748b', padding: '4px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, flexShrink: 0 }}>VS</div>
-                                                <div style={{ flex: 1, textAlign: 'center', fontWeight: 700, fontSize: 14, color: '#f8fafc', wordBreak: 'break-word' }}>
-                                                    {m.teamB?.name || 'Team B'}
-                                                    {m.status === 'Completed' && (
-                                                        <div style={{ marginTop: 6 }}>
-                                                            {m.isSuperOver && (
-                                                                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>
-                                                                    Reg: {m.score?.inning2?.runs}/{m.score?.inning2?.wickets} ({m.score?.inning2?.overs})
-                                                                </div>
-                                                            )}
-                                                            <div style={{ fontSize: 16, fontWeight: 900, color: m.result?.winningTeam?._id === m.teamB?._id ? '#22c55e' : '#475569' }}>
-                                                                {m.isSuperOver
-                                                                    ? `${m.superOver?.inning2?.runs}/${m.superOver?.inning2?.wickets} (SO)`
-                                                                    : `${m.score?.inning2?.runs}/${m.score?.inning2?.wickets} (${m.score?.inning2?.overs})`
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {m.status === 'Completed' && (
-                                                <div style={{
-                                                    marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)',
-                                                    textAlign: 'center', color: '#facc15', fontWeight: 800, fontSize: 13
-                                                }}>
-                                                    🏆 Result: {m.result?.winningTeam?.name ? `${m.result.winningTeam.name} ${m.result.margin}` : m.result?.margin || 'Match Completed'}
-                                                    {m.isSuperOver && <span style={{ marginLeft: 6, fontSize: 9, background: '#ef4444', color: '#fff', padding: '2px 5px', borderRadius: 4, verticalAlign: 'middle' }}>SUPER OVER RESULT</span>}
-                                                </div>
-                                            )}
-                                            {m.venue && (
-                                                <div style={{ textAlign: 'center', marginTop: 12, fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                                                    <MapPin size={12} /> {m.venue}
-                                                </div>
-                                            )}
+                        {data.status === 'Active' && (
+                            <section className="dashboard-section">
+                                <div className="section-header">
+                                    <div className="header-title">
+                                        <div className="icon-bg blue">
+                                            <Activity size={20} />
                                         </div>
-                                    ))}
+                                        <h2>Scheduled Matches</h2>
+                                        <span style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', padding: '4px 12px', borderRadius: 100, fontSize: 12, fontWeight: 900 }}>{matches.length}</span>
+                                    </div>
+                                </div>
+
+                                {matches.length === 0 ? (
+                                    <div className="glass-panel" style={{ padding: 48, textAlign: 'center' }}>
+                                        <Activity size={40} color="#334155" style={{ margin: '0 auto 16px', opacity: 0.5 }} />
+                                        <p style={{ color: '#475569', fontSize: 15, fontWeight: 700 }}>No matches scheduled yet.</p>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        {matches.map((m: any) => (
+                                            <div key={m._id} className="glass-panel" style={{ padding: 24 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <div className={`status-badge ${m.status.toLowerCase() === 'live' ? 'live' : ''}`}>
+                                                            <span className="dot"></span> {m.status}
+                                                        </div>
+                                                        <div className="meta-item" style={{ fontSize: 12 }}>
+                                                            <Calendar size={14} /> {new Date(m.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 8 }}>
+                                                        {(m.status === 'Scheduled' || m.status === 'Live') && (
+                                                            <button onClick={() => { setCancelingMatchId(m._id); setCancelModalVisible(true); }} className="status-badge" style={{ cursor: 'pointer', background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444' }}>Cancel</button>
+                                                        )}
+                                                        {(m.status === 'Scheduled' || m.status === 'Live') && (
+                                                            <Link href={`/dashboard/organizer/tournaments/${data._id}/matches/${m._id}/score`}>
+                                                                <button className="tdetail-start-btn" style={{ padding: '8px 16px', fontSize: 12 }}>
+                                                                    <Play size={14} fill="currentColor" /> {m.status === 'Live' ? 'Scoring' : 'Start'}
+                                                                </button>
+                                                            </Link>
+                                                        )}
+                                                        {m.status === 'Completed' && (
+                                                            <Link href={`/dashboard/organizer/matches/${m._id}`}>
+                                                                <button className="status-badge" style={{ cursor: 'pointer', background: 'rgba(255,255,255,0.05)', color: '#fff' }}>Scorecard</button>
+                                                            </Link>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+                                                    {/* Team A */}
+                                                    <div style={{ flex: 1, minWidth: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', justifyContent: 'center' }}>
+                                                            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                {m.teamA?.logo ? (
+                                                                    <img src={getImageUrl(m.teamA.logo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                ) : (
+                                                                    <Users size={20} color="#475569" />
+                                                                )}
+                                                            </div>
+                                                            <div style={{ fontSize: 16, fontWeight: 900, color: getTeamColor(m.teamA?.name), textAlign: 'center' }}>{m.teamA?.name}</div>
+                                                        </div>
+                                                        {m.status === 'Completed' && (
+                                                            <div style={{ fontSize: 24, fontWeight: 950, color: m.result?.winningTeam?._id === m.teamA?._id ? '#22c55e' : '#94a3b8' }}>
+                                                                {m.isSuperOver ? m.superOver?.inning1?.runs : m.score?.inning1?.runs || 0}
+                                                                <span style={{ fontSize: 12, opacity: 0.5, marginLeft: 4 }}>({m.score?.inning1?.overs})</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div style={{ fontSize: 10, fontWeight: 900, color: '#475569', background: 'rgba(255,255,255,0.03)', padding: '6px 14px', borderRadius: 12 }}>VS</div>
+
+                                                    {/* Team B */}
+                                                    <div style={{ flex: 1, minWidth: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', justifyContent: 'center' }}>
+                                                            <div style={{ fontSize: 16, fontWeight: 900, color: getTeamColor(m.teamB?.name), textAlign: 'center' }}>{m.teamB?.name}</div>
+                                                            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                {m.teamB?.logo ? (
+                                                                    <img src={getImageUrl(m.teamB.logo)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                ) : (
+                                                                    <Users size={20} color="#475569" />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {m.status === 'Completed' && (
+                                                            <div style={{ fontSize: 24, fontWeight: 950, color: m.result?.winningTeam?._id === m.teamB?._id ? '#22c55e' : '#94a3b8' }}>
+                                                                {m.isSuperOver ? m.superOver?.inning2?.runs : m.score?.inning2?.runs || 0}
+                                                                <span style={{ fontSize: 12, opacity: 0.5, marginLeft: 4 }}>({m.score?.inning2?.overs})</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {(m.status === 'Completed' || m.result?.margin) && (
+                                                    <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                                                        <span style={{ color: '#facc15', fontSize: 13, fontWeight: 900 }}>🏆 {m.result?.margin}</span>
+                                                    </div>
+                                                )}
+                                                {m.venue && (
+                                                    <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                                        <MapPin size={12} /> {m.venue}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+                        )}
+                    </div>
+
+                    {/* Sidebar */}
+                    <div className="org-sidebar">
+                        <section className="dashboard-section">
+                            <div className="section-header">
+                                <h3 style={{ fontSize: 18, fontWeight: 900 }}>Tournament Info</h3>
+                            </div>
+                            <div className="glass-panel" style={{ padding: 24 }}>
+                                <h4 style={{ fontSize: 11, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Description</h4>
+                                <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>{data.description || 'No description provided.'}</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 12 }}>
+                                    <span style={{ color: '#475569', fontWeight: 700 }}>Created</span>
+                                    <span style={{ fontWeight: 800 }}>{new Date(data.createdAt).toLocaleDateString()}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                    <span style={{ color: '#475569', fontWeight: 700 }}>Winner</span>
+                                    <span style={{ color: '#facc15', fontWeight: 900 }}>TBD 🏆</span>
                                 </div>
                             </div>
+                        </section>
+
+                        {data.status === 'Active' && (
+                            <section className="dashboard-section">
+                                <div className="section-header">
+                                    <h3 style={{ fontSize: 18, fontWeight: 900 }}>Live Controls</h3>
+                                </div>
+                                {!showCreateMatch ? (
+                                    <div className="glass-panel" style={{ background: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
+                                        <button onClick={() => setShowCreateMatch(true)} className="tdetail-start-btn" style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }}>Schedule Match</button>
+                                        <button className="add-btn" style={{ width: '100%', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>Live Scoring 📈</button>
+                                    </div>
+                                ) : (
+                                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="premium-form-box">
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+                                            <h4 style={{ margin: 0, color: '#3b82f6' }}>New Match</h4>
+                                            <button onClick={() => setShowCreateMatch(false)} style={{ background: 'transparent', border: 'none', color: '#475569', fontSize: 12, fontWeight: 700 }}>Cancel</button>
+                                        </div>
+                                        <form onSubmit={handleCreateMatch} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                            <select required value={newMatch.teamA} onChange={e => setNewMatch({ ...newMatch, teamA: e.target.value })} className="premium-input">
+                                                <option value="">Select Team A</option>
+                                                {data.teams.map((t: any) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                                            </select>
+                                            <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 900, color: '#475569' }}>VS</div>
+                                            <select required value={newMatch.teamB} onChange={e => setNewMatch({ ...newMatch, teamB: e.target.value })} className="premium-input">
+                                                <option value="">Select Team B</option>
+                                                {data.teams.map((t: any) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                                            </select>
+                                            <input type="datetime-local" required value={newMatch.date} onChange={e => setNewMatch({ ...newMatch, date: e.target.value })} className="premium-input" />
+                                            <input type="text" placeholder="Venue" value={newMatch.venue} onChange={e => setNewMatch({ ...newMatch, venue: e.target.value })} className="premium-input" />
+                                            <button type="submit" disabled={actionLoading} className="add-btn" style={{ width: '100%' }}>Schedule</button>
+                                        </form>
+                                    </motion.div>
+                                )}
+                            </section>
                         )}
                     </div>
                 </div>
             </div>
 
-            <style>{`
-                .tdetail-container { max-width: 1000px; margin: 0 auto; padding: 24px 16px; overflow-x: hidden; width: 100%; box-sizing: border-box; }
-                .tdetail-header { display: flex; flex-direction: column; gap: 20px; margin-bottom: 36px; }
-                .tdetail-start-btn {
-                    background: linear-gradient(135deg, #22c55e, #16a34a); color: #000; border: none;
-                    border-radius: 14px; padding: 14px 24px; font-weight: 800; cursor: pointer;
-                    display: flex; align-items: center; gap: 10px; font-size: 15px;
-                    box-shadow: 0 8px 24px rgba(34,197,94,0.3); align-self: flex-start; white-space: nowrap; max-width: 100%;
-                }
-                .tdetail-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; width: 100%; }
-                @media (min-width: 640px) {
-                    .tdetail-container { padding: 36px 24px; }
-                    .tdetail-header { flex-direction: row; justify-content: space-between; align-items: flex-start; }
-                }
-                @media (min-width: 768px) {
-                    .tdetail-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
-                }
-            `}</style>
+            {/* Cancel Match Modal */}
+            {cancelModalVisible && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel" style={{ width: '100%', maxWidth: 400, padding: 32 }}>
+                        <h3 style={{ margin: '0 0 16px 0', fontSize: 20, fontWeight: 900 }}>Cancel Match</h3>
+                        <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 24 }}>Reason for cancellation:</p>
+                        <form onSubmit={handleCancelMatch} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <select value={cancellationReasons.includes(cancelReason) ? cancelReason : 'Other (Custom Reason)'} onChange={e => setCancelReason(e.target.value === 'Other (Custom Reason)' ? '' : e.target.value)} className="premium-input">
+                                {cancellationReasons.map((r, i) => <option key={i} value={r}>{r}</option>)}
+                            </select>
+                            {!cancellationReasons.includes(cancelReason) && (
+                                <input type="text" placeholder="Custom reason..." value={cancelReason} onChange={e => setCancelReason(e.target.value)} className="premium-input" required autoFocus />
+                            )}
+                            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+                                <button type="button" onClick={() => { setCancelModalVisible(false); setCancelReason(''); }} className="status-badge" style={{ cursor: 'pointer' }}>Back</button>
+                                <button type="submit" disabled={!cancelReason || actionLoading} className="add-btn" style={{ background: '#ef4444' }}>Confirm</button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
         </div>
     );
 }

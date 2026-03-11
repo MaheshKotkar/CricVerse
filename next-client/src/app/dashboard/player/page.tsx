@@ -9,11 +9,14 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import api from '../../../utils/api';
+import PointsTable from '../../../components/PointsTable';
 
 function PlayerDashboardContent() {
     const { user, logout } = useAuth();
     const [matches, setMatches] = useState<any[]>([]);
+    const [tournaments, setTournaments] = useState<any[]>([]);
     const [loadingMatches, setLoadingMatches] = useState(true);
+    const [loadingTours, setLoadingTours] = useState(true);
 
     useEffect(() => {
         const fetchMatches = async () => {
@@ -26,7 +29,22 @@ function PlayerDashboardContent() {
                 setLoadingMatches(false);
             }
         };
+
+        const fetchTournaments = async () => {
+            try {
+                const res = await api.get('/tournaments/public');
+                // Only show top 2 active tournaments for the dashboard points table
+                const activeOnes = res.data.data.filter((t: any) => t.status === 'Active').slice(0, 2);
+                setTournaments(activeOnes);
+            } catch (err) {
+                console.error("Failed to fetch tournaments:", err);
+            } finally {
+                setLoadingTours(false);
+            }
+        };
+
         fetchMatches();
+        fetchTournaments();
     }, []);
 
     const statCards = [
@@ -133,6 +151,36 @@ function PlayerDashboardContent() {
                         ))}
                     </div>
                 </div>
+
+                {/* Tournament Leaderboards */}
+                {tournaments.length > 0 && (
+                    <div className="pd-section">
+                        <h2 className="pd-section-title">
+                            <Trophy size={20} color="#facc15" /> Tournament Leaderboards
+                        </h2>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }}>
+                            {tournaments.map(t => (
+                                <div key={t._id} style={{
+                                    background: 'linear-gradient(135deg, rgba(13,20,36,0.9), rgba(10,16,32,0.8))',
+                                    border: '1px solid rgba(255,255,255,0.06)',
+                                    borderRadius: 24,
+                                    padding: '24px'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div style={{ width: 32, height: 32, background: 'rgba(250,204,21,0.1)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Trophy size={16} color="#facc15" />
+                                            </div>
+                                            <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{t.name}</h3>
+                                        </div>
+                                        <Link href={`/dashboard/player/tournaments`} style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none', fontWeight: 700 }}>Full Details →</Link>
+                                    </div>
+                                    <PointsTable tournamentId={t._id} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Upcoming Matches */}
                 <div className="pd-section">

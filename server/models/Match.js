@@ -133,6 +133,22 @@ const MatchSchema = new mongoose.Schema({
             bowlMaidens: { type: Number, default: 0 }
         }, { _id: false }),
         default: {}
+    },
+    superOverPlayerStats: {
+        type: Map,
+        of: new mongoose.Schema({
+            batRuns: { type: Number, default: 0 },
+            batBalls: { type: Number, default: 0 },
+            batFours: { type: Number, default: 0 },
+            batSixes: { type: Number, default: 0 },
+            isOut: { type: Boolean, default: false },
+            dismissalType: { type: String, default: null },
+            bowlRuns: { type: Number, default: 0 },
+            bowlBalls: { type: Number, default: 0 },
+            bowlWickets: { type: Number, default: 0 },
+            bowlMaidens: { type: Number, default: 0 }
+        }, { _id: false }),
+        default: {}
     }
 }, { timestamps: true });
 

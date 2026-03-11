@@ -11,15 +11,23 @@ import toast from 'react-hot-toast';
 function FindTournamentsContent() {
     const { user } = useAuth();
     const [tournaments, setTournaments] = useState<any[]>([]);
+    const [joinedTournaments, setJoinedTournaments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [joiningId, setJoiningId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [activeTab, setActiveTab] = useState<'browse' | 'joined'>('browse');
 
     useEffect(() => {
         const fetchTournaments = async () => {
             try {
                 const res = await api.get('/tournaments/public');
                 setTournaments(res.data.data);
+                
+                // Filter tournaments that the current user has joined
+                const joined = res.data.data.filter((t: any) => 
+                    t.registeredPlayers?.includes(user?.id)
+                );
+                setJoinedTournaments(joined);
             } catch (err) {
                 console.error("Failed to fetch tournaments:", err);
                 toast.error("Failed to load tournaments");
@@ -28,7 +36,7 @@ function FindTournamentsContent() {
             }
         };
         fetchTournaments();
-    }, []);
+    }, [user?.id]);
 
     const handleJoin = async (id: string, name: string) => {
         setJoiningId(id);
@@ -51,6 +59,11 @@ function FindTournamentsContent() {
     };
 
     const filteredTournaments = tournaments.filter(t =>
+        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.venue && t.venue.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
+    const filteredJoinedTournaments = joinedTournaments.filter(t =>
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (t.venue && t.venue.toLowerCase().includes(searchQuery.toLowerCase()))
     );
@@ -80,9 +93,11 @@ function FindTournamentsContent() {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32 }}>
                     <div>
                         <h1 style={{ fontSize: 'clamp(1.8rem, 5vw, 2.5rem)', fontWeight: 900, margin: '0 0 8px 0', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <Trophy color="#3b82f6" /> Find Tournaments
+                            <Trophy color="#3b82f6" /> {activeTab === 'joined' ? 'My Tournaments' : 'Find Tournaments'}
                         </h1>
-                        <p style={{ color: '#94a3b8', fontSize: 15, margin: 0 }}>Browse and register for upcoming cricket events.</p>
+                        <p style={{ color: '#94a3b8', fontSize: 15, margin: 0 }}>
+                            {activeTab === 'joined' ? 'Tournaments you have joined' : 'Browse and register for upcoming cricket events.'}
+                        </p>
                     </div>
 
                     <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: 400 }}>
@@ -100,23 +115,51 @@ function FindTournamentsContent() {
                     </div>
                 </div>
 
+                {/* Tab Navigation */}
+                <div style={{ display: 'flex', gap: 12, marginBottom: 28, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 0 }}>
+                    <button
+                        onClick={() => setActiveTab('browse')}
+                        style={{
+                            padding: '14px 20px', borderBottom: activeTab === 'browse' ? '2px solid #3b82f6' : 'none', background: 'transparent',
+                            color: activeTab === 'browse' ? '#3b82f6' : '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                            transition: 'all 0.2s', borderRadius: 0
+                        }}
+                    >
+                        Browse Tournaments
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('joined')}
+                        style={{
+                            padding: '14px 20px', borderBottom: activeTab === 'joined' ? '2px solid #22c55e' : 'none', background: 'transparent',
+                            color: activeTab === 'joined' ? '#22c55e' : '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                            transition: 'all 0.2s', borderRadius: 0
+                        }}
+                    >
+                        My Tournaments ({joinedTournaments.length})
+                    </button>
+                </div>
+
                 {loading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
                         <Loader2 className="animate-spin" color="#3b82f6" size={40} />
                     </div>
-                ) : filteredTournaments.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(15,22,41,0.6)', borderRadius: 24, border: '1px dashed rgba(255,255,255,0.1)' }}>
-                        <Trophy size={48} color="#475569" style={{ margin: '0 auto 16px auto' }} />
-                        <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 8px 0' }}>No Tournaments Found</h3>
-                        <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>{searchQuery ? "Try adjusting your search filters." : "There are currently no tournaments on the platform."}</p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
-                        {filteredTournaments.map((t, index) => {
-                            const isJoined = t.registeredPlayers?.includes(user?.id);
-                            const isJoining = joiningId === t._id;
-
-                            return (
+                ) : activeTab === 'joined' ? (
+                    // MY TOURNAMENTS TAB
+                    filteredJoinedTournaments.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(15,22,41,0.6)', borderRadius: 24, border: '1px dashed rgba(255,255,255,0.1)' }}>
+                            <Trophy size={48} color="#475569" style={{ margin: '0 auto 16px auto' }} />
+                            <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 8px 0' }}>No Tournaments Joined</h3>
+                            <p style={{ color: '#64748b', fontSize: 14, margin: '0 0 20px 0' }}>Start your cricket journey by joining a tournament!</p>
+                            <button
+                                onClick={() => setActiveTab('browse')}
+                                style={{ background: '#3b82f6', color: '#fff', padding: '10px 20px', borderRadius: 10, border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Browse Tournaments
+                            </button>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+                            {filteredJoinedTournaments.map((t, index) => (
                                 <motion.div
                                     key={t._id}
                                     initial={{ opacity: 0, y: 15 }}
@@ -125,7 +168,7 @@ function FindTournamentsContent() {
                                     style={{ background: 'rgba(15,22,41,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column' }}
                                 >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                                        <div style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 100, textTransform: 'uppercase' }}>
+                                        <div style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 100, textTransform: 'uppercase' }}>
                                             {t.format}
                                         </div>
                                         <div style={{ fontSize: 12, fontWeight: 700, color: t.status === 'Active' ? '#22c55e' : '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -148,25 +191,86 @@ function FindTournamentsContent() {
                                         </div>
                                     </div>
 
-                                    <button
-                                        onClick={() => handleJoin(t._id, t.name)}
-                                        disabled={isJoined || isJoining || t.status === 'Completed'}
+                                    <Link 
+                                        href={`/dashboard/player/tournaments/${t._id}`}
                                         style={{
-                                            width: '100%', padding: '14px', borderRadius: 12, fontWeight: 800, cursor: (isJoined || t.status === 'Completed') ? 'default' : 'pointer',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s',
-                                            background: isJoined ? 'rgba(34,197,94,0.1)' : t.status === 'Completed' ? 'rgba(255,255,255,0.05)' : '#3b82f6',
-                                            color: isJoined ? '#22c55e' : t.status === 'Completed' ? '#64748b' : '#fff',
-                                            border: isJoined ? '1px solid rgba(34,197,94,0.2)' : 'none',
-                                            opacity: isJoining ? 0.7 : 1
+                                            width: '100%', padding: '14px', borderRadius: 12, fontWeight: 800, cursor: 'pointer',
+                                            background: '#22c55e', color: '#000', textAlign: 'center', textDecoration: 'none',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s'
                                         }}
                                     >
-                                        {isJoining ? <Loader2 size={18} className="animate-spin" /> : null}
-                                        {isJoined ? '✓ Joined' : t.status === 'Completed' ? 'Completed' : 'Join Tournament'}
-                                    </button>
+                                        View Matches
+                                    </Link>
                                 </motion.div>
-                            );
-                        })}
-                    </div>
+                            ))}
+                        </div>
+                    )
+                ) : (
+                    // BROWSE TOURNAMENTS TAB
+                    filteredTournaments.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(15,22,41,0.6)', borderRadius: 24, border: '1px dashed rgba(255,255,255,0.1)' }}>
+                            <Trophy size={48} color="#475569" style={{ margin: '0 auto 16px auto' }} />
+                            <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 8px 0' }}>No Tournaments Found</h3>
+                            <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>{searchQuery ? "Try adjusting your search filters." : "There are currently no tournaments on the platform."}</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+                            {filteredTournaments.map((t, index) => {
+                                const isJoined = t.registeredPlayers?.includes(user?.id);
+                                const isJoining = joiningId === t._id;
+
+                                return (
+                                    <motion.div
+                                        key={t._id}
+                                        initial={{ opacity: 0, y: 15 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: index * 0.05 }}
+                                        style={{ background: 'rgba(15,22,41,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column' }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                                            <div style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6', fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 100, textTransform: 'uppercase' }}>
+                                                {t.format}
+                                            </div>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: t.status === 'Active' ? '#22c55e' : '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.status === 'Active' ? '#22c55e' : '#94a3b8' }}></span>
+                                                {t.status}
+                                            </div>
+                                        </div>
+
+                                        <h3 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 12px 0', lineHeight: 1.3 }}>{t.name}</h3>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24, flex: 1 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 13 }}>
+                                                <Calendar size={15} /> Starts: {new Date(t.startDate).toLocaleDateString()}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 13 }}>
+                                                <MapPin size={15} /> {t.venue || 'TBD'}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
+                                                <span style={{ color: '#f8fafc', fontWeight: 700 }}>{t.registeredPlayers?.length || 0}</span> players joined
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={() => handleJoin(t._id, t.name)}
+                                            disabled={isJoined || isJoining || t.status === 'Completed'}
+                                            style={{
+                                                width: '100%', padding: '14px', borderRadius: 12, fontWeight: 800, cursor: (isJoined || t.status === 'Completed') ? 'default' : 'pointer',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s',
+                                                background: isJoined ? 'rgba(34,197,94,0.1)' : t.status === 'Completed' ? 'rgba(255,255,255,0.05)' : '#3b82f6',
+                                                color: isJoined ? '#22c55e' : t.status === 'Completed' ? '#64748b' : '#fff',
+                                                border: isJoined ? '1px solid rgba(34,197,94,0.2)' : 'none',
+                                                opacity: isJoining ? 0.7 : 1
+                                            }}
+                                        >
+                                            {isJoining ? <Loader2 size={18} className="animate-spin" /> : null}
+                                            {isJoined ? '✓ Joined' : t.status === 'Completed' ? 'Completed' : 'Join Tournament'}
+                                        </button>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    )
                 )}
             </div>
         </div>

@@ -4,6 +4,7 @@ import { Users, Plus, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import api from '../../../../utils/api';
 import ProtectedRoute from '../../../../components/ProtectedRoute';
+import { getImageUrl } from '../../../../utils/imageUrl';
 
 function TeamList() {
     const [loading, setLoading] = useState(true);
@@ -62,7 +63,7 @@ function TeamList() {
                                 }}>
                                     {team.logo ? (
                                         <img
-                                            src={team.logo.startsWith('http') ? team.logo : `http://localhost:5000${team.logo.startsWith('/') ? '' : '/'}${team.logo}`}
+                                            src={getImageUrl(team.logo)}
                                             alt={team.name}
                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                         />
